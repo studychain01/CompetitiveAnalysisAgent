@@ -1,0 +1,14 @@
+Here is the profile you asked for.
+
+```json
+{
+  "category": "venue booking software",
+  "buyer": "event operations / planners",
+  "business_model": "SaaS subscription",
+  "summary": "Helps teams source and book venues with workflow automation.",
+  "competitor_seeds": ["RivalA", "RivalB"],
+  "uncertainties": ["Pricing for enterprise tier not confirmed on-site."]
+}
+```
+
+Hope this helps.

@@ -1,0 +1,23 @@
+{
+  "query": "ExampleCo competitors",
+  "follow_up_questions": null,
+  "answer": null,
+  "images": [],
+  "results": [
+    {
+      "title": "Top ExampleCo alternatives (2026)",
+      "url": "https://example.com/blog/exampleco-alternatives",
+      "content": "Competitors include RivalA, RivalB, and RivalC for overlapping venue workflows.",
+      "score": 0.92,
+      "published_date": "2026-01-10"
+    },
+    {
+      "title": "RivalA pricing",
+      "url": "https://rivala.example/pricing",
+      "content": "RivalA lists usage-based billing with annual discounts.",
+      "score": 0.81,
+      "published_date": null
+    }
+  ],
+  "response_time": 0.42
+}

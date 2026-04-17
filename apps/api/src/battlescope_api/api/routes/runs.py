@@ -38,6 +38,10 @@ class RunSyncResponse(BaseModel):
         default_factory=dict,
         description="10-K Item 1A distilled risk themes (after SecRisk10K node).",
     )
+    competitor_landscape: dict = Field(
+        default_factory=dict,
+        description="3–6 competitors with SEC-theme mapping (after CompetitorDiscover node).",
+    )
 
 
 @router.post("", response_model=RunSyncResponse)
@@ -75,4 +79,5 @@ async def create_run(body: RunCreateRequest) -> RunSyncResponse:
         planner_notes=list(final.get("planner_notes") or []),
         trace_events=list(final.get("trace_events") or []),
         sec_risk_dossier=dict(final.get("sec_risk_dossier") or {}),
+        competitor_landscape=dict(final.get("competitor_landscape") or {}),
     )

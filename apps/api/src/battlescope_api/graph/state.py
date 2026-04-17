@@ -23,3 +23,6 @@ class GraphState(TypedDict, total=False):
     
     # Latest 10-K Item 1A risk themes (see ``sec_risk_node``); optional until that node runs.
     sec_risk_dossier: dict[str, Any]
+
+    # Competitor shortlist + SEC-theme mapping (see ``competitor_discover_node``).
+    competitor_landscape: dict[str, Any]

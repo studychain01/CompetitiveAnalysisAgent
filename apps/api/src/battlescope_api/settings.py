@@ -15,6 +15,11 @@ _ENV_FILE = _API_ROOT / ".env"
 # declared fields from ``.env``; this ensures ``LANGCHAIN_*`` / ``LANGSMITH_*`` in
 # ``apps/api/.env`` are visible to langsmith without relying on shell cwd.
 load_dotenv(_ENV_FILE, override=False)
+# Monorepo users often keep secrets in the repo root ``.env``; load after ``apps/api/.env`` so
+# per-service keys win when the same name exists in both files (``override=False``).
+_REPO_ROOT_ENV = _API_ROOT.parent.parent / ".env"
+if _REPO_ROOT_ENV.is_file():
+    load_dotenv(_REPO_ROOT_ENV, override=False)
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +56,15 @@ class Settings(BaseSettings):
     http_backoff_base_s: float = 0.4
 
     tavily_api_key: str | None = None
+    newsapi_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "NEWSAPI_API_KEY",
+            "NEWS_API_API_KEY",
+            "NEWSAPI_KEY",
+            "NEWS_ORG_API_KEY",
+        ),
+    )
     firecrawl_api_key: str | None = None
     alphavantage_api_key: str | None = Field(
         default=None,
@@ -68,9 +82,12 @@ class Settings(BaseSettings):
     sec_edgar_user_agent: str = "BattleScope/0.1 (https://example.com/contact; research)"
     sec_risk_filing_download_max_chars: int = 800_000
     sec_risk_excerpt_max_chars: int = 200_000
+    competitor_react_recursion_limit: int = 20
+    competitor_context_max_chars: int = 800_000
 
     @field_validator(
         "tavily_api_key",
+        "newsapi_api_key",
         "firecrawl_api_key",
         "alphavantage_api_key",
         "fmp_api_key",

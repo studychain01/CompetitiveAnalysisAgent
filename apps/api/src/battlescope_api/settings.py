@@ -84,6 +84,27 @@ class Settings(BaseSettings):
     sec_risk_excerpt_max_chars: int = 200_000
     competitor_react_recursion_limit: int = 20
     competitor_context_max_chars: int = 800_000
+    peer_react_recursion_limit: int = 25
+    peer_research_context_max_chars: int = 100_000
+    strategy_context_max_chars: int = 48_000
+    strategy_allow_tavily_followup: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("STRATEGY_TAVILY_FOLLOWUP", "strategy_allow_tavily_followup"),
+    )
+
+    @field_validator("strategy_allow_tavily_followup", mode="before")
+    @classmethod
+    def coerce_strategy_followup_bool(cls, value: object) -> bool:
+        if value is None or value is False:
+            return False
+        if value is True:
+            return True
+        if isinstance(value, str):
+            s = value.strip().lower()
+            if s in ("0", "false", "no", "off", ""):
+                return False
+            return s in ("1", "true", "yes", "on")
+        return bool(value)
 
     @field_validator(
         "tavily_api_key",

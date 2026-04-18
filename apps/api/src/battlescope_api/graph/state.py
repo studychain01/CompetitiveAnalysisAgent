@@ -26,3 +26,9 @@ class GraphState(TypedDict, total=False):
 
     # Competitor shortlist + SEC-theme mapping (see ``competitor_discover_node``).
     competitor_landscape: dict[str, Any]
+
+    # Deep peer digests (see ``peer_research_parallel_node``).
+    peer_research_digests: dict[str, Any]
+
+    # Terminal competitive strategy (see ``competitive_strategy_node``).
+    competitive_strategy: dict[str, Any]

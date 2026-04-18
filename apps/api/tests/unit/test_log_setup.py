@@ -42,3 +42,25 @@ def test_json_log_formatter_includes_extras() -> None:
     line = JsonLogFormatter().format(record)
     payload = json.loads(line)
     assert payload["trace_id"] == "t-1"
+
+
+def test_json_log_formatter_truncates_long_extra_strings() -> None:
+    logger = logging.getLogger("fmt.test.big")
+    blob = "x" * 5000
+    record = logger.makeRecord(
+        name=logger.name,
+        level=logging.INFO,
+        fn=__file__,
+        lno=1,
+        msg="short",
+        args=(),
+        exc_info=None,
+        func=None,
+        extra={"packed": blob},
+        sinfo=None,
+    )
+    line = JsonLogFormatter().format(record)
+    payload = json.loads(line)
+    assert payload["msg"] == "short"
+    assert "omitted" in payload["packed"]
+    assert len(payload["packed"]) < len(blob)

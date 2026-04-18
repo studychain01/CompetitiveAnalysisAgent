@@ -42,6 +42,14 @@ class RunSyncResponse(BaseModel):
         default_factory=dict,
         description="3–6 competitors with SEC-theme mapping (after CompetitorDiscover node).",
     )
+    peer_research_digests: dict = Field(
+        default_factory=dict,
+        description="Up to 3 parallel deep peer digests (after PeerResearchParallel node).",
+    )
+    competitive_strategy: dict = Field(
+        default_factory=dict,
+        description="Prioritized competitive strategy (after CompetitiveStrategy node).",
+    )
 
 
 @router.post("", response_model=RunSyncResponse)
@@ -80,4 +88,6 @@ async def create_run(body: RunCreateRequest) -> RunSyncResponse:
         trace_events=list(final.get("trace_events") or []),
         sec_risk_dossier=dict(final.get("sec_risk_dossier") or {}),
         competitor_landscape=dict(final.get("competitor_landscape") or {}),
+        peer_research_digests=dict(final.get("peer_research_digests") or {}),
+        competitive_strategy=dict(final.get("competitive_strategy") or {}),
     )

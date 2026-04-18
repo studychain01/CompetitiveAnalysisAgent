@@ -22,6 +22,7 @@ class GraphState(TypedDict, total=False):
     stage: str
     
     # Latest 10-K Item 1A risk themes (see ``sec_risk_node``); optional until that node runs.
+    # Optional ``risk_theme_categories`` / ``risk_theme_headlines`` (same length as ``risk_theme_bullets``): UI only.
     sec_risk_dossier: dict[str, Any]
 
     # Competitor shortlist + SEC-theme mapping (see ``competitor_discover_node``).

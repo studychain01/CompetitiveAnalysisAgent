@@ -7,6 +7,7 @@ from battlescope_api.graph.state import GraphState
 from battlescope_api.models.competitive_strategy import (
     CompetitiveStrategyLlm,
     HorizonPlan,
+    PeerStrategyDeepDive,
     PrioritizedMove,
 )
 from battlescope_api.settings import get_settings
@@ -52,6 +53,14 @@ async def test_competitive_strategy_mocked_synthesis(
 
     stub = CompetitiveStrategyLlm(
         executive_summary="We focus on integrations.",
+        peer_deep_dives=[
+            PeerStrategyDeepDive(
+                peer_name="PEER",
+                where_home_stands="Home trails on integrations vs PEER.",
+                short_term_reconciliation=["Ship one high-traffic connector"],
+                long_term_reconciliation=["Platform posture for ecosystem"],
+            ),
+        ],
         advantage_gap_matrix=[],
         prioritized_moves=[
             PrioritizedMove(
@@ -94,6 +103,9 @@ async def test_competitive_strategy_mocked_synthesis(
     strat = out.get("competitive_strategy") or {}
     assert strat.get("status") == "partial"
     assert strat.get("executive_summary") == "We focus on integrations."
+    dives = strat.get("peer_deep_dives") or []
+    assert isinstance(dives, list) and dives
+    assert dives[0].get("peer_name") == "PEER"
     assert strat.get("prioritized_moves")
     events = out.get("trace_events") or []
     assert any(e.get("message") == "CompetitiveStrategy" for e in events)

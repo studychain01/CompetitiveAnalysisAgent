@@ -91,6 +91,26 @@ def _pack_strategy_context(state: GraphState, settings: Settings) -> str:
     lines.append("")
     lines.append("## peer_research_digests")
     lines.append(_clip(json.dumps(digests, ensure_ascii=False), max_chars // 3))
+    by_peer = digests.get("by_peer") if isinstance(digests, dict) else {}
+    deep_names: list[str] = []
+    if isinstance(by_peer, dict):
+        for key, row in by_peer.items():
+            if not isinstance(row, dict) or row.get("status") != "ok":
+                continue
+            digest = row.get("digest") if isinstance(row.get("digest"), dict) else {}
+            display = (digest or {}).get("peer_display_name") if isinstance(digest, dict) else ""
+            label = str(display).strip() or str(key).strip()
+            if label and label not in deep_names:
+                deep_names.append(label)
+            if len(deep_names) >= 3:
+                break
+    lines.append("")
+    lines.append("## deep_research_peer_names (ordered; max 3)")
+    lines.append(json.dumps(deep_names, ensure_ascii=False))
+    lines.append(
+        "Emit `peer_deep_dives` in this order when possible—one object per name; "
+        "if a digest failed, omit that peer or shorten with lower confidence."
+    )
     return _clip("\n".join(lines), max_chars)
 
 

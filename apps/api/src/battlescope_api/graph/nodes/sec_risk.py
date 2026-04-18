@@ -106,6 +106,149 @@ class SecRiskThemeBullets(BaseModel):
     )
 
 
+# Closed vocabulary for second-pass UI grouping (parallel to ``risk_theme_bullets`` indices).
+RISK_THEME_CATEGORY_ORDER: tuple[str, ...] = (
+    "Competition",
+    "Demand/Macro",
+    "Supply chain",
+    "Regulatory",
+    "Cyber/IP",
+    "Operational",
+    "Financial/Liquidity",
+    "Legal/Litigation",
+    "People",
+    "Strategy/Execution",
+    "Other",
+)
+
+_CATEGORY_BY_LOWER: dict[str, str] = {c.casefold(): c for c in RISK_THEME_CATEGORY_ORDER}
+
+
+class SecRiskThemeCategories(BaseModel):
+    """Per-bullet UI labels from the same LLM call as categorization — do not rewrite the source bullets."""
+
+    categories: list[str] = Field(
+        default_factory=list,
+        description="Exactly one category label per bullet, same count and order as the enumerated bullets.",
+    )
+    headlines: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Exactly one short headline per bullet (same count/order): scannable title, ~6–14 words, "
+            "captures the main risk; must not contradict the bullet; not a copy-paste of the full bullet."
+        ),
+    )
+
+
+def _normalize_risk_category_label(raw: str) -> str:
+    s = (raw or "").strip()
+    if not s:
+        return ""
+    return _CATEGORY_BY_LOWER.get(s.casefold(), "Other")
+
+
+def validated_risk_theme_categories(
+    bullets: list[str],
+    categories: list[str] | None,
+) -> list[str] | None:
+    """Return normalized parallel categories, or None if length mismatch or invalid."""
+    if not bullets or not categories:
+        return None
+    if len(categories) != len(bullets):
+        return None
+    out: list[str] = []
+    for raw in categories:
+        label = _normalize_risk_category_label(str(raw))
+        if not label:
+            return None
+        out.append(label)
+    return out
+
+
+_RISK_HEADLINE_MAX_CHARS = 120
+
+
+def validated_risk_theme_headlines(
+    bullets: list[str],
+    headlines: list[str] | None,
+) -> list[str] | None:
+    """Return trimmed headlines (length-capped), or None if length mismatch or any empty after trim."""
+    if not bullets or not headlines:
+        return None
+    if len(headlines) != len(bullets):
+        return None
+    out: list[str] = []
+    for raw in headlines:
+        s = str(raw).strip()
+        if not s:
+            return None
+        if len(s) > _RISK_HEADLINE_MAX_CHARS:
+            s = s[: _RISK_HEADLINE_MAX_CHARS - 1].rstrip() + "…"
+        out.append(s)
+    return out
+
+
+def _bullets_snippet_for_label_prompt(bullets: list[str], *, max_each: int = 360) -> str:
+    lines: list[str] = []
+    for i, b in enumerate(bullets):
+        t = b.strip()
+        clip = t[:max_each] + ("…" if len(t) > max_each else "")
+        lines.append(f"[{i}] {clip}")
+    return "\n".join(lines)
+
+
+async def _label_risk_bullet_categories(
+    settings: Settings,
+    bullets: list[str],
+) -> tuple[list[str] | None, list[str] | None]:
+    """Second LLM pass: closed-vocabulary category + short headline per bullet. On failure returns (None, None)."""
+    if not bullets or not settings.openai_api_key:
+        return None, None
+    model = ChatOpenAI(
+        api_key=settings.openai_api_key,
+        base_url=settings.openai_sdk_base_url,
+        model=settings.openai_model,
+        temperature=0.0,
+    )
+    structured = model.with_structured_output(SecRiskThemeCategories)
+    vocab = ", ".join(RISK_THEME_CATEGORY_ORDER)
+    enumerated = _bullets_snippet_for_label_prompt(bullets)
+    msg = HumanMessage(
+        content=(
+            "## Task\n"
+            "Each line below is one **risk theme bullet** (index in brackets). The bullets are **final** — "
+            "do not rewrite, summarize, merge, reorder, or drop any bullet.\n\n"
+            "## Output\n"
+            "Return two arrays of **equal length**, matching bullets in order (indices 0.."
+            f"{len(bullets) - 1}):\n"
+            "1. `categories` — exactly one **closed-vocabulary** label per bullet (see allowed list).\n"
+            "2. `headlines` — exactly one **short headline** per bullet for UI: scannable, plain language, "
+            "roughly **6–14 words**, no leading numbering, no quotes; capture the single dominant risk; "
+            "must not contradict the bullet; **do not** paste or lightly tweak the full bullet text.\n\n"
+            "## Allowed category labels (exact spelling)\n"
+            f"{vocab}\n\n"
+            "## Bullets\n\n"
+            f"{enumerated}"
+        )
+    )
+    try:
+        out = await structured.ainvoke([msg])
+        raw_cats: list[str] = []
+        raw_heads: list[str] = []
+        if isinstance(out, SecRiskThemeCategories):
+            raw_cats = [str(x) for x in out.categories]
+            raw_heads = [str(x) for x in out.headlines]
+        elif isinstance(out, dict):
+            raw_cats = [str(x) for x in (out.get("categories") or [])]
+            raw_heads = [str(x) for x in (out.get("headlines") or [])]
+        cats = validated_risk_theme_categories(bullets, raw_cats)
+        heads = validated_risk_theme_headlines(bullets, raw_heads)
+        return cats, heads
+    except Exception as exc:
+        logger.warning("sec_risk_llm_categorize_failed", extra={"error": str(exc)})
+        return None, None
+
+
 def _heuristic_bullets_from_excerpt(excerpt: str, *, max_bullets: int = 8) -> list[str]:
     """Fallback when OpenAI is unavailable: split on sentence boundaries."""
     chunk = excerpt[:8000]
@@ -304,7 +447,7 @@ async def run_sec_risk_pipeline(
         "cik": row.get("cik"),
         "final_link": final_link,
     }
-    return {
+    dossier_ok: dict[str, Any] = {
         "status": "ok",
         "symbol": sym,
         "reason": None,
@@ -313,6 +456,13 @@ async def run_sec_risk_pipeline(
         "excerpt_chars": len(excerpt),
         "extraction": extraction,
     }
+    if bullets:
+        cats, heads = await _label_risk_bullet_categories(settings, bullets)
+        if cats is not None:
+            dossier_ok["risk_theme_categories"] = cats
+        if heads is not None:
+            dossier_ok["risk_theme_headlines"] = heads
+    return dossier_ok
 
 
 async def sec_risk_node(state: GraphState) -> GraphState:

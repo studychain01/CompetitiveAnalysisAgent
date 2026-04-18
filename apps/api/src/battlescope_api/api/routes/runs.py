@@ -1,11 +1,17 @@
+import json
 import uuid
+from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 from functools import lru_cache
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from battlescope_api.graph.builder import build_graph
 from battlescope_api.graph.state import GraphState
+from battlescope_api.services.run_initial_state import build_initial_graph_state
+from battlescope_api.services.run_registry import consume, register
 
 router = APIRouter()
 
@@ -19,6 +25,12 @@ def _compiled_graph():
 class RunCreateRequest(BaseModel):
     company_name: str | None = Field(default=None, description="Target company name")
     company_url: str | None = Field(default=None, description="Target company URL")
+
+
+class RunStreamStartResponse(BaseModel):
+    run_id: str
+    thread_id: str
+    events_url: str
 
 
 class RunSyncResponse(BaseModel):
@@ -52,25 +64,135 @@ class RunSyncResponse(BaseModel):
     )
 
 
+def _graph_state_to_stream_payload(state: GraphState) -> dict:
+    """Subset aligned with ``RunSyncResponse`` for client merge (excluding run_id/thread_id)."""
+    profile = state.get("company_profile") or {}
+    return {
+        "stage": str(state.get("stage", "")),
+        "company_profile": dict(profile) if isinstance(profile, dict) else {},
+        "company_url_normalized": state.get("company_url_normalized"),
+        "planner_notes": list(state.get("planner_notes") or []),
+        "trace_events": list(state.get("trace_events") or []),
+        "sec_risk_dossier": dict(state.get("sec_risk_dossier") or {}),
+        "competitor_landscape": dict(state.get("competitor_landscape") or {}),
+        "peer_research_digests": dict(state.get("peer_research_digests") or {}),
+        "competitive_strategy": dict(state.get("competitive_strategy") or {}),
+    }
+
+
+def _sse_data_line(obj: dict) -> str:
+    return f"data: {json.dumps(obj, default=str)}\n\n"
+
+
+async def _run_event_generator(run_id: str) -> AsyncIterator[str]:
+    def _ts() -> str:
+        return datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    initial = consume(run_id)
+    if initial is None:
+        yield _sse_data_line(
+            {
+                "v": 1,
+                "type": "error",
+                "run_id": run_id,
+                "ts": _ts(),
+                "payload": {"detail": "unknown_or_expired_run_id"},
+            }
+        )
+        return
+
+    graph = _compiled_graph()
+    last: GraphState | None = None
+    try:
+        async for _mode, snapshot in graph.astream(initial, stream_mode=["values"]):
+            if not isinstance(snapshot, dict):
+                continue
+            last = snapshot  # type: ignore[assignment]
+            yield _sse_data_line(
+                {
+                    "v": 1,
+                    "type": "state",
+                    "run_id": run_id,
+                    "ts": _ts(),
+                    "payload": _graph_state_to_stream_payload(last),
+                }
+            )
+    except Exception as exc:  # noqa: BLE001
+        yield _sse_data_line(
+            {
+                "v": 1,
+                "type": "error",
+                "run_id": run_id,
+                "ts": _ts(),
+                "payload": {"detail": f"{type(exc).__name__}: {exc}"},
+            }
+        )
+        return
+
+    if last is not None:
+        yield _sse_data_line(
+            {
+                "v": 1,
+                "type": "complete",
+                "run_id": run_id,
+                "ts": _ts(),
+                "payload": _graph_state_to_stream_payload(last),
+            }
+        )
+
+
+@router.post("/start", response_model=RunStreamStartResponse, status_code=202)
+async def start_stream_run(body: RunCreateRequest) -> RunStreamStartResponse:
+    """
+    Register initial graph state for a later ``GET /runs/{run_id}/events`` SSE stream.
+    Does not execute the graph (see streaming endpoint).
+    """
+    run_id = str(uuid.uuid4())
+    thread_id = run_id
+    initial = build_initial_graph_state(
+        run_id=run_id,
+        thread_id=thread_id,
+        company_name=(body.company_name or "").strip(),
+        company_url=(body.company_url or "").strip(),
+    )
+    register(run_id, initial)
+    events_url = f"/runs/{run_id}/events"
+    return RunStreamStartResponse(
+        run_id=run_id,
+        thread_id=thread_id,
+        events_url=events_url,
+    )
+
+
+@router.get("/{run_id}/events")
+async def stream_run_events(run_id: str) -> StreamingResponse:
+    """Server-Sent Events: stream graph state snapshots until ``complete`` or ``error``."""
+    return StreamingResponse(
+        _run_event_generator(run_id),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 @router.post("", response_model=RunSyncResponse)
 async def create_run(body: RunCreateRequest) -> RunSyncResponse:
     """
     Run the LangGraph through its current nodes (today: IntakeProfiler only) and return state.
 
-    Use this for incremental HTTP testing; add SSE or background jobs later for long runs.
+    Use this for incremental HTTP testing; use ``POST /runs/start`` + ``GET /runs/{id}/events`` for SSE.
     """
     run_id = str(uuid.uuid4())
     thread_id = run_id
 
-    initial: GraphState = {
-        "run_id": run_id,
-        "thread_id": thread_id,
-        "loop_count": 0,
-        "company_name": (body.company_name or "").strip(),
-        "company_url": (body.company_url or "").strip(),
-        "planner_notes": [],
-        "trace_events": [],
-    }
+    initial = build_initial_graph_state(
+        run_id=run_id,
+        thread_id=thread_id,
+        company_name=(body.company_name or "").strip(),
+        company_url=(body.company_url or "").strip(),
+    )
 
     try:
         final: GraphState = await _compiled_graph().ainvoke(initial)

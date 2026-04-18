@@ -56,12 +56,49 @@ class HorizonPlan(BaseModel):
     )
 
 
+class PeerStrategyDeepDive(BaseModel):
+    """Home vs one deep-researched peer: position and reconciliation paths."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    peer_name: str = Field(description="Must match a deep-research peer (see packed `deep_research_peer_names`).")
+    where_home_stands: str = Field(
+        description="2–5 sentences: how home compares to this peer (strengths, gaps, exposure), grounded in digests/landscape.",
+    )
+    short_term_reconciliation: list[str] = Field(
+        default_factory=list,
+        max_length=6,
+        description="0–90d concrete steps for home given this rivalry; 3–5 bullets when possible.",
+    )
+    long_term_reconciliation: list[str] = Field(
+        default_factory=list,
+        max_length=6,
+        description="6–24m structural moves to close the gap or defend; 2–5 bullets when possible.",
+    )
+    watchouts: str = Field(
+        default="",
+        description="Risks, constraints, or SEC themes that interact with this matchup.",
+    )
+    source_urls: list[str] = Field(
+        default_factory=list,
+        description="URLs copied from peer digests or competitor_landscape only; [] if none.",
+    )
+
+
 class CompetitiveStrategyLlm(BaseModel):
     """Root schema for final strategy structured output."""
 
     model_config = ConfigDict(extra="ignore")
 
-    executive_summary: str = Field(default="", description="3–6 sentences max; scannable.")
+    executive_summary: str = Field(
+        default="",
+        description="Short rollup for Overview tab (2–4 sentences); Strategy uses per-peer deep dives instead.",
+    )
+    peer_deep_dives: list[PeerStrategyDeepDive] = Field(
+        default_factory=list,
+        max_length=3,
+        description="One entry per deep-research peer (max 3), same order as `deep_research_peer_names` in the pack.",
+    )
     advantage_gap_matrix: list[AdvantageGapRow] = Field(default_factory=list)
     prioritized_moves: list[PrioritizedMove] = Field(default_factory=list)
     short_term_plan: HorizonPlan = Field(

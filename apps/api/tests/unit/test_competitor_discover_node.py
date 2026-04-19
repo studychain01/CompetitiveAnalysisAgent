@@ -115,6 +115,13 @@ async def test_competitor_discover_mocked_react_three_peers(
     async def _fake_run(**_kwargs: object) -> tuple[CompetitorLandscapeLlm | None, list[str]]:
         return structured, []
 
+    async def _fake_seed(**_kwargs: object) -> str:
+        return "### Tavily seed (step 0 — test stub)\n(synthetic)"
+
+    monkeypatch.setattr(
+        "battlescope_api.graph.nodes.competitor_discover.fetch_tavily_top10_seed_block",
+        _fake_seed,
+    )
     monkeypatch.setattr(
         "battlescope_api.graph.nodes.competitor_discover.run_competitor_react_research",
         _fake_run,

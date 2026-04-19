@@ -25,7 +25,7 @@ def load_competitor_react_system_prompt() -> str:
     return (_PROMPTS_DIR / "competitor_react_system.md").read_text(encoding="utf-8")
 
 
-def _format_tavily_block(payload: dict) -> str:
+def format_tavily_block_for_prompt(payload: dict) -> str:
     lines: list[str] = []
     for idx, item in enumerate(payload.get("results") or [], start=1):
         title = item.get("title") or ""
@@ -50,6 +50,42 @@ def _clip(text: str, max_chars: int) -> str:
     return text[: max_chars - 20] + "\n...[truncated]..."
 
 
+async def fetch_tavily_top10_seed_block(
+    *,
+    tavily: TavilyClient,
+    company_name: str,
+    max_chars: int,
+) -> str:
+    """
+    Mandatory first research step: one Tavily query aimed at a broad ~6 competitor list.
+    Injected above the ReAct brief so the model always starts from a wide candidate pool.
+    """
+    name = (company_name or "").strip()
+    if not name:
+        return ""
+    primary = f"top 10 competitors of {name}"
+    fallback = f"{name} main competitors compared list"
+    try:
+        payload = await tavily.search(primary, max_results=10)
+        results = payload.get("results") or []
+        if len(results) < 3:
+            payload = await tavily.search(fallback, max_results=10)
+    except Exception as exc:
+        logger.warning("tavily_top10_seed_failed", extra={"error": str(exc)})
+        return (
+            f"### Tavily seed (top ~10) — **failed**\n"
+            f"`{primary}` → {type(exc).__name__}: {exc}\n"
+            "Continue with `tavily_search` / `news_search` in the ladder."
+        )
+    block = format_tavily_block_for_prompt(payload)
+    header = (
+        "### Tavily seed (step 0 — **top ~10 candidates**)\n"
+        f"**Query used:** `{primary}` (max_results=10). "
+        "From this pool + follow-up tools, **narrow to 5–6** best grounded peers (minimum 3).\n\n"
+    )
+    return _clip(header + block, max_chars)
+
+
 def build_competitor_react_user_brief(
     *,
     company_name: str,
@@ -65,15 +101,16 @@ def build_competitor_react_user_brief(
     return "\n".join(
         [
             "## Research task",
-            "Discover **3–6 competitors** of the **target** company described below. "
-            "Use tools where enabled. Map each competitor to **home SEC Item 1A risk themes** "
+            "Discover **5–6 competitors** of the **target** (minimum **3** when evidence is thin). "
+            "A **Tavily top-10 seed** block may appear above — treat it as the **wide candidate pool**, then "
+            "**verify and filter** with tools. Map each final peer to **home SEC Item 1A risk themes** "
             "from the packed context (see system prompt for mapping rules).",
             "",
-            "## Finding competitors atleast 3-5 of them (summary — full ladder in system prompt)",
-            "- Try **several different** news + web query shapes (target + competitors / vs / market; category leaders; "
-            "ticker-based variants if a symbol appears in packed context). Go **broad → narrow**.",
-            "- Use **Firecrawl** on high-value comparison or analyst URLs when enabled to pull **names** from page body, "
-            "not only snippets.",
+            "## Funnel (summary — full ladder in system prompt)",
+            "- **Step 0:** Tavily seed above (when present) lists ~10 candidates — **do not skip** using it as the starting set.",
+            "- **Steps 1+:** Corroborate with `tavily_search`, `news_search` (when enabled), `scrape_url` on strong URLs; "
+            "go **broad → narrow** until you have **5–6** best grounded names (or ≥3 if evidence caps out).",
+            "- Use **Firecrawl** on comparison / analyst pages when enabled to pull **names** from page body, not only snippets.",
             "- **If you cannot find three** after that ladder: return **only** grounded names (never pad with unrelated "
             "megacaps). Explain briefly in **`target_company_context_note`**; use weak/speculative grades and lower "
             "confidence. The product will show **degraded** until there are at least three distinct peers.",
@@ -102,15 +139,15 @@ def build_competitor_react_graph(
     max_ctx = settings.competitor_context_max_chars
 
     @tool
-    async def tavily_search(query: str, max_results: int = 6) -> str:
-        """Search the public web for competitors, market maps, analyst comparisons, or company facts."""
+    async def tavily_search(query: str, max_results: int = 10) -> str:
+        """Search the public web for competitors, market maps, analyst comparisons, or company facts. Use up to 10 results for broad peer lists."""
         bounded = max(1, min(int(max_results), 10))
         try:
             payload = await tavily.search(query, max_results=bounded)
         except Exception as exc:
             logger.warning("competitor_react_tavily_tool_error", extra={"error": str(exc)})
             return f"Tavily error ({type(exc).__name__}): {exc}"
-        return _clip(_format_tavily_block(payload), max_ctx)
+        return _clip(format_tavily_block_for_prompt(payload), max_ctx)
 
     @tool
     async def news_search(query: str, page_size: int = 15) -> str:

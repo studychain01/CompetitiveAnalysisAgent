@@ -48,6 +48,13 @@ def test_create_run_invokes_graph_and_returns_intake_state(monkeypatch: pytest.M
             [],
         )
 
+    async def _stub_tavily_seed(**_kwargs: object) -> str:
+        return ""
+
+    monkeypatch.setattr(
+        "battlescope_api.graph.nodes.competitor_discover.fetch_tavily_top10_seed_block",
+        _stub_tavily_seed,
+    )
     monkeypatch.setattr(
         "battlescope_api.graph.nodes.competitor_discover.run_competitor_react_research",
         _stub_competitor_react,

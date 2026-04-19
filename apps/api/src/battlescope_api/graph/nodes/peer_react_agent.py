@@ -13,8 +13,8 @@ from langgraph.prebuilt import create_react_agent
 
 from battlescope_api.graph.nodes.competitor_react_agent import (
     _clip,
-    _format_tavily_block,
     _firecrawl_markdown,
+    format_tavily_block_for_prompt,
 )
 from battlescope_api.models.peer_research_digest import PeerResearchDigestLlm
 from battlescope_api.settings import Settings
@@ -102,7 +102,7 @@ def build_peer_react_graph(
         except Exception as exc:
             logger.warning("peer_react_tavily_tool_error", extra={"error": str(exc)})
             return f"Tavily error ({type(exc).__name__}): {exc}"
-        return _clip(_format_tavily_block(payload), max_ctx)
+        return _clip(format_tavily_block_for_prompt(payload), max_ctx)
 
     @tool
     async def news_search(query: str, page_size: int = 15) -> str:

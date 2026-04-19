@@ -41,7 +41,7 @@ class CompetitorEntry(BaseModel):
 
     display_name: str
     ticker: str | None = None
-    why_in_top_set: str = Field(description="Why this company belongs in the top 3–6 set for the target.")
+    why_in_top_set: str = Field(description="Why this company belongs in the final 5–6 (or 3–4 if thin) peer set for the target.")
     evidence_grade: str = Field(
         default="moderate",
         description="One of: strong, moderate, weak, speculative — based on corroboration in tool output.",
@@ -68,7 +68,7 @@ class CompetitorLandscapeLlm(BaseModel):
     competitors: list[CompetitorEntry] = Field(
         default_factory=list,
         max_length=6,
-        description="3–6 distinct named competitors (not the target company).",
+        description="5–6 distinct named competitors when evidence allows (minimum 3; not the target company).",
     )
 
     def as_state_dict(self) -> dict[str, Any]:

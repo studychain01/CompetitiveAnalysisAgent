@@ -10,6 +10,7 @@ from typing import Any
 
 from battlescope_api.graph.nodes.competitor_react_agent import (
     build_competitor_react_user_brief,
+    fetch_tavily_top10_seed_block,
     run_competitor_react_research,
 )
 from battlescope_api.graph.state import GraphState
@@ -158,6 +159,20 @@ async def competitor_discover_node(state: GraphState) -> GraphState:
             tavily = TavilyClient(settings.tavily_api_key, http_tool)
             newsapi = NewsApiClient(settings.newsapi_api_key, http_tool)
             firecrawl = FirecrawlClient(settings.firecrawl_api_key, http_tool)
+            seed_max = min(12_000, settings.competitor_context_max_chars)
+            if settings.tavily_api_key and company_name.strip():
+                seed_block = await fetch_tavily_top10_seed_block(
+                    tavily=tavily,
+                    company_name=company_name,
+                    max_chars=seed_max,
+                )
+                brief = f"{seed_block}\n\n---\n\n{brief}"
+                append_trace_event(
+                    events,
+                    "tavily_top10_seed",
+                    run_id,
+                    "Tavily top-10 competitor seed merged into competitor brief",
+                )
             sr, react_notes = await run_competitor_react_research(
                 settings=settings,
                 tavily=tavily,

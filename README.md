@@ -5,8 +5,30 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-orchestration-1C3C3C?logo=langchain&logoColor=white)](https://langchain-ai.github.io/langgraph/)
 [![SSE](https://img.shields.io/badge/Runs-SSE%20stream-7C3AED)](#run-locally)
+[![Live demo](https://img.shields.io/badge/Live%20demo-Vercel-000000?logo=vercel&logoColor=white)](https://competitive-analysis-agent-web.vercel.app/)
 
 Autonomous **competitive research and strategy**: you provide a company name or URL, and the system discovers rivals, gathers evidence on the open web, and returns a **structured** teardown plus priorities—meant to be read in a dashboard, not as one long essay.
+
+### Live demo
+
+- **Web (Vercel):** [https://competitive-analysis-agent-web.vercel.app/](https://competitive-analysis-agent-web.vercel.app/)
+- **API (Railway):** [https://battlescopeagent-production.up.railway.app](https://battlescopeagent-production.up.railway.app) — health check: [`/health`](https://battlescopeagent-production.up.railway.app/health), OpenAPI: [`/docs`](https://battlescopeagent-production.up.railway.app/docs)
+
+The hosted UI is configured to call the Railway API (`NEXT_PUBLIC_API_URL`). You can still [run everything locally](#run-locally).
+
+### Screenshots
+
+**Start a run** — name and/or URL, API health, developer hint for `POST /runs/start` + SSE.
+
+![Start a run — company name / URL form](docs/images/initial-page.png)
+
+**Dashboard** — pipeline updates in real time; tabs unlock as stages complete.
+
+![Overview — live stages and tabbed results](docs/images/overview-page.png)
+
+**Competitors** — discovered landscape for the target company.
+
+![Competitors — discovered peer set](docs/images/competitors-page.png)
 
 ## What I built (take-home scope)
 
@@ -17,7 +39,7 @@ Here is what I shipped against the brief, in plain terms:
 - **Research:** I used **bounded ReAct** for intake, discovery, and peer passes, backed by **real tools** (search, crawl, optional headlines / transcripts / filing metadata)—not one monolithic “ask the model everything” call.
 - **Analyze + strategize:** Where a **10-K Item 1A** path resolves, I anchor peer comparison on that **shared risk lens**, then land a **structured** strategy object the UI splits into **tabs** (risk, landscape, peers, strategy) so you can scan it quickly.
 - **Real-time UI:** I stream **`trace_events`** over **`GET /runs/{id}/events`** (**SSE**) so you see **which stage is running** instead of waiting on a silent spinner until the graph finishes.
-- **How I’m submitting it:** a **runnable monorepo** ([Run locally](#run-locally)); I’m **not** assuming a hosted demo—please run API + web locally. I can pair this README with a short **Loom** if you want a walkthrough; the write-up is meant to stand alone if you prefer text only.
+- **How I’m submitting it:** a **runnable monorepo** ([Run locally](#run-locally)) plus a **hosted demo** ([Live demo](#live-demo) and screenshots above). I can pair this README with a short **Loom** if you want a walkthrough; the write-up is meant to stand alone if you prefer text only.
 
 ## Problem and approach
 

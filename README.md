@@ -168,25 +168,30 @@ Optional **LangSmith / LangChain** tracing env vars are documented at the bottom
 
 Optional: [uv](https://docs.astral.sh/uv/) for faster Python installs.
 
-### Web dashboard
+### Backend + frontend (two terminals)
 
-```bash
-npm install
-npm run dev:web
-```
+From the **monorepo root** (`BattleScope/`): use one shell for the API and another for the Next.js UI.
 
-→ [http://localhost:3000](http://localhost:3000)
-
-### API (FastAPI + LangGraph)
+**Terminal 1 — API (FastAPI + LangGraph)**
 
 ```bash
 cd apps/api
 python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
-pytest
 uvicorn battlescope_api.main:app --reload --port 8000
 ```
+
+**Optional — run tests** after you **stop Uvicorn** (`Ctrl+C`) with the same venv still active, run `pytest`. From a **fresh** shell: `cd apps/api`, activate `.venv`, then `pytest` (Windows: `.venv\Scripts\activate`).
+
+**Terminal 2 — Web dashboard** (repo root)
+
+```bash
+npm install
+npm run dev:web
+```
+
+→ UI: [http://localhost:3000](http://localhost:3000) · API health: [http://localhost:8000/health](http://localhost:8000/health)
 
 | Topic | Detail |
 |--------|--------|

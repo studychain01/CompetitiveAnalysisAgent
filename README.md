@@ -178,9 +178,6 @@ Optional **LangSmith / LangChain** tracing env vars are documented at the bottom
 - **Private / non-U.S. data** — vendors beyond 10-K when ICP + budget match.  
 - **HITL** — optional approval on sensitive battle-plan moves.
 
-> [!TIP]
-> **Demo:** use a **liquid U.S. ticker**, full keys in `apps/api/.env`, then **Overview → Strategy** after the pipeline completes.
-
 ---
 
 ## Run locally

@@ -67,6 +67,23 @@ flowchart TB
 | **peer_research_parallel** | Deep **per-peer** passes (up to **three** peers in parallel). | `asyncio.gather` of **ReAct** sessions—same tool family as discovery—each capped by a **recursion limit**; digest per peer in `peer_research_digests`. |
 | **competitive_strategy** | Terminal synthesis: matrix, prioritized moves, peer deep dives, cross-peer levers, etc. | **OpenAI structured output** (Pydantic) over a packed context window; optional **Tavily** follow-up pass when `STRATEGY_TAVILY_FOLLOWUP` is enabled. |
 
+### External tools & APIs
+
+ReAct agents do not call the network by magic—they go through small **typed clients** (search, crawl, filings, LLM). Everything is optional except **OpenAI** for the main graph; missing keys **degrade** or **skip** specific paths rather than crashing the repo.
+
+| Integration | Used for | Config (see `apps/api/.env.example`) |
+|-------------|----------|----------------------------------------|
+| **OpenAI** | Chat + **structured outputs** (profiles, landscapes, digests, strategy schema). | `OPENAI_API_KEY`, `OPENAI_MODEL`, optional `OPENAI_BASE_URL` |
+| **Tavily** | Web **search** snippets fed into intake, competitor, peer, and optional strategy follow-up. | `TAVILY_API_KEY` |
+| **Firecrawl** | **Fetch / markdown** from company and competitor URLs. | `FIRECRAWL_API_KEY` |
+| **Financial Modeling Prep** | **SEC filing metadata** and links (latest **10-K** path for Item 1A). | `FMP_API_KEY` (aliases in `settings.py`) |
+| **Alpha Vantage** | Optional **equity / transcript**-style context during intake when a symbol is available. | `ALPHA_VANTAGE_API_KEY` |
+| **NewsAPI** | Optional **headlines** for competitor and peer research agents. | `NEWSAPI_API_KEY` (several alias env names supported) |
+
+**In-process plumbing:** filing HTML and generic HTTP use a shared **`ToolClient`** with **retries** and size limits before any LLM sees the text—so “tools” includes both third-party APIs and **first-party fetch + clip** logic.
+
+Optional **LangSmith / LangChain** tracing env vars are documented at the bottom of this README for local debugging.
+
 ### Memory model
 
 > **In one line:** there is **no durable DB** for the take-home—everything worth keeping for a run lives in LangGraph **`GraphState`**, so the “memory” is **inspectable JSON-shaped fields**, not hidden scratchpad text.

@@ -1,8 +1,8 @@
 # CompetitorDiscoverer
 
-Objective: return **5–6** competitor candidates when evidence allows (**minimum 3**), each with provenance URLs/snippets.
+Objective: return **3–5 high-quality, same-industry** competitor candidates (**minimum 3** when evidence allows), each with provenance URLs/snippets.
 
-**Pipeline:** the server runs **Tavily first** with `top 10 competitors of <target>` (max 10 results). The ReAct agent **narrows** that pool with tools and returns a **final 3–6** list (prefer **5–6**).
+**Pipeline:** the server runs **Tavily** first with a broad peer query (max 10 results). The ReAct agent **filters out wrong-sector noise**, then **verifies one candidate at a time** with tools and returns a **final 3–5** list—**not** bulk-copied megacaps (e.g. not Apple/Samsung for an aerospace OEM).
 
 Rules: every candidate must cite at least one search result URL.
 

@@ -81,7 +81,8 @@ async def fetch_tavily_top10_seed_block(
     header = (
         "### Tavily seed (step 0 — **top ~10 candidates**)\n"
         f"**Query used:** `{primary}` (max_results=10). "
-        "From this pool + follow-up tools, **narrow to 5–6** best grounded peers (minimum 3).\n\n"
+        "**Filter out wrong-sector names** (e.g. consumer tech for aerospace/industrial targets). "
+        "Then **verify one candidate at a time** with tools; **narrow to 3–5** same-industry peers (minimum 3).\n\n"
     )
     return _clip(header + block, max_chars)
 
@@ -101,15 +102,15 @@ def build_competitor_react_user_brief(
     return "\n".join(
         [
             "## Research task",
-            "Discover **5–6 competitors** of the **target** (minimum **3** when evidence is thin). "
-            "A **Tavily top-10 seed** block may appear above — treat it as the **wide candidate pool**, then "
-            "**verify and filter** with tools. Map each final peer to **home SEC Item 1A risk themes** "
-            "from the packed context (see system prompt for mapping rules).",
+            "Discover **3–5 legitimate, same-industry competitors** of the **target** (minimum **3** when evidence is thin). "
+            "A **Tavily top-10 seed** may appear above — it is **noisy**; **reject** wrong-sector names (e.g. Apple/Samsung for an aircraft OEM). "
+            "**Verify one candidate at a time** before adding the next; ensure no duplicate. "
+            "Map each final peer to **home SEC Item 1A risk themes** from the packed context (see system prompt).",
             "",
             "## Funnel (summary — full ladder in system prompt)",
-            "- **Step 0:** Tavily seed above (when present) lists ~10 candidates — **do not skip** using it as the starting set.",
-            "- **Steps 1+:** Corroborate with `tavily_search`, `news_search` (when enabled), `scrape_url` on strong URLs; "
-            "go **broad → narrow** until you have **5–6** best grounded names (or ≥3 if evidence caps out).",
+            "- **Step 0:** Tavily seed (when present) — **discard** junk; do **not** copy the list blindly.",
+            "- **Steps 1+:** For **each** candidate, run a **focused** `tavily_search` / `news_search` to prove **same-market** rivalry; "
+            "then add the next peer only if it is new and **industry-valid**.",
             "- Use **Firecrawl** on comparison / analyst pages when enabled to pull **names** from page body, not only snippets.",
             "- **If you cannot find three** after that ladder: return **only** grounded names (never pad with unrelated "
             "megacaps). Explain briefly in **`target_company_context_note`**; use weak/speculative grades and lower "

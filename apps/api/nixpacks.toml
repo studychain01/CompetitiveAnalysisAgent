@@ -1,5 +1,4 @@
-# Nixpacks (optional). For Railway, the repo-root ``railway.json`` is what actually
-# overrides the dashboard start command unless you set Config path to ``/apps/api/railway.json``.
+# Optional Nixpacks hints. On Railway prefer ``Dockerfile`` + ``railway.json`` in this directory.
 
 [phases.install]
 cmds = ["pip install --no-cache-dir ."]

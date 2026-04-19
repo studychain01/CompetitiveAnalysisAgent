@@ -1,6 +1,6 @@
 "use client";
 
-import { PIPELINE_STAGES, stageIndex } from "@/lib/pipeline";
+import { executingPipelineStageId, PIPELINE_STAGES, stageIndex } from "@/lib/pipeline";
 
 type PipelineStepperProps = {
   finalStage: string | null;
@@ -8,16 +8,18 @@ type PipelineStepperProps = {
 };
 
 export function PipelineStepper({ finalStage, isRunning }: PipelineStepperProps) {
-  const finalIdx = finalStage ? stageIndex(finalStage) : -1;
+  const idxDone = finalStage ? stageIndex(finalStage) : -1;
+  /** Pipeline node currently executing (``stage`` from API is last *completed*). */
+  const execId = isRunning ? executingPipelineStageId(finalStage || "") : "";
+  const execIdx = isRunning ? stageIndex(execId) : -1;
 
   return (
     <section className="rounded-lg border border-border bg-surface-elevated p-4">
       <h2 className="text-xs font-semibold uppercase tracking-wide text-subtle">Pipeline</h2>
       <ol className="mt-3 space-y-0">
         {PIPELINE_STAGES.map((step, i) => {
-          const done = !isRunning && finalIdx >= i;
-          const active = isRunning && i === 0;
-          const pending = !isRunning && finalIdx < i;
+          const done = isRunning ? i < execIdx : idxDone >= 0 && i <= idxDone;
+          const active = isRunning && i === execIdx;
 
           return (
             <li key={step.id} className="flex gap-3 border-l border-border py-2 pl-3 first:pt-0 last:pb-0">
@@ -38,7 +40,7 @@ export function PipelineStepper({ finalStage, isRunning }: PipelineStepperProps)
               <div className="min-w-0 flex-1">
                 <p
                   className={
-                    pending || (isRunning && i > 0)
+                    !done && !active
                       ? "text-sm text-subtle"
                       : active
                         ? "text-sm font-medium text-accent"

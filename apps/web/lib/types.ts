@@ -27,3 +27,19 @@ export type CreateRunBody = {
   company_name?: string | null;
   company_url?: string | null;
 };
+
+/** Response from ``POST /runs/start`` (202). */
+export type RunStreamStartResponse = {
+  run_id: string;
+  thread_id: string;
+  events_url: string;
+};
+
+/** One SSE ``data:`` JSON line from ``GET /runs/{run_id}/events``. */
+export type RunSseMessage = {
+  v: number;
+  type: "state" | "complete" | "error";
+  run_id: string;
+  ts: string;
+  payload: Record<string, unknown>;
+};

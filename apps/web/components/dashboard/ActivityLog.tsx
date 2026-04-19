@@ -3,9 +3,11 @@ import type { TraceEvent } from "@/lib/types";
 type ActivityLogProps = {
   traceEvents: TraceEvent[];
   plannerNotes: string[];
+  /** Tighter layout when nested under a disclosure (sidebar). */
+  embedded?: boolean;
 };
 
-export function ActivityLog({ traceEvents, plannerNotes }: ActivityLogProps) {
+export function ActivityLog({ traceEvents, plannerNotes, embedded }: ActivityLogProps) {
   const clip = (s: string, max: number) => (s.length <= max ? s : `${s.slice(0, max)}…`);
 
   const lines: string[] = [
@@ -19,12 +21,16 @@ export function ActivityLog({ traceEvents, plannerNotes }: ActivityLogProps) {
   ];
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col rounded-lg border border-border bg-surface">
-      <h2 className="shrink-0 border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-subtle">
-        Activity
-      </h2>
+    <section
+      className={`flex min-h-0 flex-col rounded-lg border border-border bg-surface ${embedded ? "" : "flex-1"}`}
+    >
+      {!embedded ? (
+        <h2 className="shrink-0 border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-subtle">
+          Activity
+        </h2>
+      ) : null}
       <div
-        className="min-h-[120px] flex-1 overflow-y-auto p-3 font-mono text-[11px] leading-relaxed text-muted"
+        className={`overflow-y-auto font-mono leading-relaxed text-muted ${embedded ? "max-h-40 p-2 text-[10px]" : "min-h-[120px] flex-1 p-3 text-[11px]"}`}
         role="log"
         aria-live="polite"
       >

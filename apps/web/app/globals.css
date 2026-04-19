@@ -1,40 +1,21 @@
 @import "tailwindcss";
 
-/* Dark-first “intel console”; light via prefers-color-scheme */
+/* Light “board deck” default (interview-friendly). Semantic names unchanged for components. */
 :root {
-  --canvas: #0c0c0e;
-  --surface: #141418;
-  --surface-elevated: #1a1a21;
-  --fg: #e8e8ec;
-  --muted: #9b9ba8;
-  --subtle: #6b6b78;
-  --border: rgba(255, 255, 255, 0.08);
-  --accent: #22d3ee;
-  --accent-subtle: rgba(34, 211, 238, 0.14);
-  --success: #34d399;
-  --warning: #fbbf24;
-  --danger: #fb7185;
-  --link: #67e8f9;
-  --link-visited: #5eead4;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    --canvas: #fafafa;
-    --surface: #ffffff;
-    --surface-elevated: #f4f4f5;
-    --fg: #171717;
-    --muted: #52525b;
-    --subtle: #71717a;
-    --border: rgba(0, 0, 0, 0.1);
-    --accent: #0891b2;
-    --accent-subtle: rgba(8, 145, 178, 0.12);
-    --success: #059669;
-    --warning: #d97706;
-    --danger: #e11d48;
-    --link: #0e7490;
-    --link-visited: #155e75;
-  }
+  --canvas: #f4f6fb;
+  --surface: #ffffff;
+  --surface-elevated: #eef1f7;
+  --fg: #0f172a;
+  --muted: #475569;
+  --subtle: #64748b;
+  --border: rgba(15, 23, 42, 0.1);
+  --accent: #4f46e5;
+  --accent-subtle: rgba(79, 70, 229, 0.12);
+  --success: #059669;
+  --warning: #b45309;
+  --danger: #be123c;
+  --link: #4338ca;
+  --link-visited: #5b21b6;
 }
 
 @theme inline {
@@ -65,13 +46,28 @@ body {
 @keyframes pulse-ring {
   0%,
   100% {
-    box-shadow: 0 0 0 0 color-mix(in oklab, var(--accent) 35%, transparent);
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--accent) 28%, transparent);
   }
   50% {
-    box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 20%, transparent);
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 14%, transparent);
   }
 }
 
 .animate-pulse-ring {
   animation: pulse-ring 2s ease-in-out infinite;
+}
+
+@keyframes tip-fade {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-tip-fade {
+  animation: tip-fade 0.45s ease-out both;
 }

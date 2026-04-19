@@ -1,21 +1,59 @@
+import { landscapeCompetitorHasDeepDive } from "@/lib/deep-dive-peers";
 import type { RunSyncResponse } from "@/lib/types";
 
 type Props = {
   run: RunSyncResponse;
 };
 
+function evidencePill(grade: string) {
+  const g = grade.toLowerCase();
+  const cls =
+    g === "strong"
+      ? "bg-success/15 text-success"
+      : g === "moderate"
+        ? "bg-surface-elevated text-muted"
+        : g === "weak"
+          ? "bg-warning/15 text-warning"
+          : "bg-danger/10 text-danger";
+  return (
+    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${cls}`}>{grade || "—"}</span>
+  );
+}
+
 export function CompetitorsPanel({ run }: Props) {
   const L = run.competitor_landscape || {};
   const status = typeof L.status === "string" ? L.status : "";
   const competitors = Array.isArray(L.competitors) ? (L.competitors as Record<string, unknown>[]) : [];
   const degraded = Boolean(L.degraded);
+  const landscapeReason = typeof L.reason === "string" ? L.reason.trim() : "";
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
+      {competitors.length > 0 ? (
+        <div className="rounded-xl border border-border border-l-[3px] border-l-accent/40 bg-accent-subtle/20 px-4 py-3 text-sm leading-relaxed text-fg shadow-sm">
+          <p className="font-semibold text-fg">Shortlist vs deep dives</p>
+          <p className="mt-1.5 text-muted">
+            This grid can include many rivals. Bounded parallel research runs on up to{" "}
+            <span className="font-medium text-fg">three</span>—the highest-confidence names from this list—so each
+            run stays fast and evidence-rich. When digest data exists, those companies show a{" "}
+            <span className="font-medium text-accent">Deep dive</span> pill.
+          </p>
+        </div>
+      ) : null}
+
       {(degraded || status === "partial") && (
         <div className="rounded-lg border-l-4 border-warning bg-warning/10 px-4 py-3 text-sm text-fg">
           <p className="font-medium text-warning">Competitor landscape partial or degraded</p>
           {status ? <p className="mt-1 font-mono text-xs text-muted">status: {status}</p> : null}
+          {landscapeReason ? (
+            <p className="mt-2 text-sm leading-relaxed text-muted">{landscapeReason}</p>
+          ) : (
+            <p className="mt-2 text-sm leading-relaxed text-muted">
+              The discovery agent aims for 3–6 distinct, URL-grounded peers. Fewer rows usually means the model could
+              not corroborate more names in this run (search quality, strict evidence rules, or step limits)—not that
+              no other rivals exist.
+            </p>
+          )}
         </div>
       )}
 
@@ -31,19 +69,27 @@ export function CompetitorsPanel({ run }: Props) {
             const domains = Array.isArray(c.sec_concern_domains)
               ? (c.sec_concern_domains as Record<string, unknown>[])
               : [];
+            const hasDeepDive = landscapeCompetitorHasDeepDive(run, c);
 
             return (
               <article
                 key={idx}
-                className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm"
+                className="rounded-2xl border border-border bg-surface p-5 shadow-md shadow-slate-900/5"
               >
                 <header className="border-b border-border pb-3">
-                  <h3 className="text-lg font-semibold text-fg">{name}</h3>
-                  {ticker ? <p className="font-mono text-xs text-muted">{ticker}</p> : null}
-                  <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                    {grade ? (
-                      <span className="rounded bg-surface px-2 py-0.5 text-muted">evidence: {grade}</span>
-                    ) : null}
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <h3 className="text-lg font-semibold text-fg">{name}</h3>
+                      {ticker ? <p className="font-mono text-xs text-muted">{ticker}</p> : null}
+                    </div>
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      {hasDeepDive ? (
+                        <span className="rounded-full border border-accent/35 bg-accent-subtle px-2.5 py-0.5 text-xs font-semibold text-accent">
+                          Deep dive
+                        </span>
+                      ) : null}
+                      {grade ? evidencePill(grade) : null}
+                    </div>
                   </div>
                 </header>
                 {why ? <p className="mt-3 text-sm leading-relaxed text-muted">{why}</p> : null}

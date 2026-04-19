@@ -10,9 +10,11 @@ import { StrategyPanel } from "./panels/StrategyPanel";
 type TabPanelsProps = {
   run: RunSyncResponse;
   activeTab: string;
+  isRunning: boolean;
+  workingLabel: string;
 };
 
-export function TabPanels({ run, activeTab }: TabPanelsProps) {
+export function TabPanels({ run, activeTab, isRunning, workingLabel }: TabPanelsProps) {
   switch (activeTab) {
     case "risk":
       return <RiskPanel run={run} />;
@@ -24,6 +26,6 @@ export function TabPanels({ run, activeTab }: TabPanelsProps) {
       return <StrategyPanel run={run} />;
     case "overview":
     default:
-      return <OverviewPanel run={run} />;
+      return <OverviewPanel run={run} isRunning={isRunning} workingLabel={workingLabel} />;
   }
 }

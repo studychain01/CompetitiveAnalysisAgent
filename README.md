@@ -154,7 +154,32 @@ Optional **LangSmith / LangChain** tracing env vars are documented at the bottom
 - **Why not “everything” on day one?** High-quality company intelligence APIs (**filings, transcripts, premium datasets**) add **cost and integration** surface. We chose a path that **grounds** strategy in **affordable, well-documented** tools (OpenAI + search/crawl + FMP-style filings) instead of burning budget on proprietary startup graphs for a **time-boxed** take-home.
 - **Natural extensions:** richer private-company packs, founder-market databases, or paid data vendors—when product scope and budget match.
 
-*Still to add: how we used AI coding assistants, and “another day” roadmap.*
+### How I used AI (Cursor)
+
+| **Helped** | **I steered** |
+|------------|---------------|
+| Fast scaffolding (API routes, graph nodes, types); **Strategy tab** layout; **README** structure + Mermaid. | **Linear graph** + bounded ReAct—not one mega-agent. **Degraded / partial** UX + **grounding** in prompts & schemas when drafts read too confident. |
+
+### Key decisions
+
+| Choice | Why |
+|--------|-----|
+| **Linear LangGraph** | Clear stages → **SSE** progress + easier debugging. |
+| **Structured outputs (Pydantic)** | **Scannable** artifacts for the UI; less rambling JSON. |
+| **SSE (not WebSockets)** | One-way updates; **less** session plumbing for the demo. |
+| **No DB** | Spec-allowed **stateless** ship; trade-off: no cross-run history. |
+| **Item 1A + FMP** | **Anchored** risk lens for public names; sane **cost** vs depth. |
+
+### Another day
+
+- **Persisted runs + queue** — multi-worker, resumable jobs.  
+- **Eval harness** — golden outputs + grounding checks on strategy.  
+- **Auth + rate limits** — tenants, abuse, **cost caps** on tool loops.  
+- **Private / non-U.S. data** — vendors beyond 10-K when ICP + budget match.  
+- **HITL** — optional approval on sensitive battle-plan moves.
+
+> [!TIP]
+> **Demo:** use a **liquid U.S. ticker**, full keys in `apps/api/.env`, then **Overview → Strategy** after the pipeline completes.
 
 ---
 

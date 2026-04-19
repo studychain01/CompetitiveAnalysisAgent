@@ -4,13 +4,44 @@ Autonomous **competitive research and strategy**: you provide a company name or 
 
 ## Problem and approach
 
-The take-home asks for **discovery, research, analysis, and strategy** without hand-holding on who counts as a competitor. The tricky part is **grounding**. Home pages and press releases optimize for confidence; random articles often recycle the same claims. We still need the web for **who exists in the market** and **what they are doing now**, but we wanted an anchor that behaves more like due diligence than marketing.
+> **In one line:** anchor open-web research in **regulated filings (10-K Item 1A)**, then **discover ≥3 competitors**, **deep-dive** the top peers, and ship a **structured** strategy the dashboard can scan—not one long essay.
 
-We narrowed the question to this: **given the best “official” articulation of what could hurt the target company, how do named competitors show up against that same backdrop—and what should leadership do next?**
+### What we had to deliver
 
-For the anchor we use **Item 1A (Risk Factors)** from the target’s **10-K**, filed with the SEC. It is not a secret confession of every weakness, but it is **regulated disclosure**: material risks and uncertainties the company must discuss, including competition, regulation, and execution. That gives downstream steps—competitor discovery, peer research, and final strategy—a **consistent lens** instead of letting the model freestyle only on unstructured hype.
+| Pillar | What it means here |
+|--------|---------------------|
+| **Discover** | No competitor list in the prompt—the agent finds who matters. |
+| **Research** | Real-time web + structured sources; evidence over vibes. |
+| **Analyze** | Compare the **target** vs peers against a **shared** risk lens. |
+| **Strategize** | Concrete, **tabbed** outputs (risk, landscape, peers, strategy)—not generic advice. |
 
-From there we use a **fixed, explicit pipeline**—same stages every run—so behavior stays auditable: **autonomously surface at least three competitors**, research each with tools and citations where possible, then **synthesize** into scannable artifacts (risk, landscape, deep dives, strategy) so the output stays actionable rather than generic.
+### The hard part: grounding
+
+- **Marketing sites** sell certainty; **SEO articles** often repeat the same lines.
+- We still **need the web** for *who is in the market* and *what they are doing now*.
+- We needed a **second source** that behaves more like **due diligence** than brand copy.
+
+### How we narrowed the question
+
+**Instead of:** “Summarize the internet about Company X.”
+
+**We optimized for:** *Given the strongest **official** articulation of what could hurt the target, how do **named** competitors show up against that same backdrop—and what should leadership do next?*
+
+### The anchor: Item 1A (10-K)
+
+> [!NOTE]
+> **Item 1A — Risk Factors** is part of the annual **10-K** filed with the SEC. It is **not** a full “weakness audit,” but it **is** *regulated disclosure*: material risks and uncertainties (competition, regulation, execution, etc.). That gives every later step—competitor discovery, peer research, final strategy—the **same lens** instead of a model-only freestyle on unstructured hype.
+
+**Why it helps**
+
+- Filings are **reviewer-shaped** text, not ad copy.
+- Themes become **indexed bullets** downstream agents can cite against.
+
+### Pipeline shape
+
+- **Fixed stages every run** → same order, easy to audit and debug.
+- **≥3 competitors** on the happy path, each researched with **tools + caps**.
+- **Artifacts** flow into the UI: risk dossier → landscape → deep dives → strategy.
 
 ## Agents, tools, memory, and failure handling
 

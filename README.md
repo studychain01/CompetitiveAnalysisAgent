@@ -36,8 +36,8 @@ Here is what I shipped against the brief, in plain terms:
 
 - **Input:** I built a **Next.js** flow where you enter a company **name** and/or **URL** (either is enough).
 - **Discover:** I wired autonomous competitor discovery toward **≥3** named rivals (prompt + Pydantic schema). When the evidence stack is thin after dedupe, `competitor_landscape` surfaces **`degraded`** instead of faking a full shortlist.
-- **Research:** I used **bounded ReAct** for intake, discovery, and peer passes, backed by **real tools** (search, crawl, optional headlines / transcripts / filing metadata)—not one monolithic “ask the model everything” call.
-- **Analyze + strategize:** Where a **10-K Item 1A** path resolves, I anchor peer comparison on that **shared risk lens**, then land a **structured** strategy object the UI splits into **tabs** (risk, landscape, peers, strategy) so you can scan it quickly.
+- **Research:** I used **bounded ReAct** for intake, discovery, and peer passes, backed by **real tools** (search, crawl, optional headlines / filing metadata)—not one monolithic “ask the model everything” call.
+- **Analyze + strategize:** When the target is a **U.S. public** company, I try to use **Item 1A — Risk Factors** from its annual **Form 10-K** (the standard yearly report public companies file with the **SEC**). **Item 1A** is where management **must** spell out material risks—competition, regulation, supply chain, execution, and similar themes—in **regulated** language, not ad copy. I use those distilled bullets as a **shared risk lens** so competitor and peer research line up on the **same** backdrop instead of a model inventing risks from random blogs. That feeds a **structured** strategy object the UI splits into **tabs** (risk, landscape, peers, strategy) for quick scanning; when no 10-K path resolves (e.g. private or non‑U.S.), the pipeline uses web-inferred themes with **explicit** labeling so nothing pretends to be SEC text.
 - **Real-time UI:** I stream **`trace_events`** over **`GET /runs/{id}/events`** (**SSE**) so you see **which stage is running** instead of waiting on a silent spinner until the graph finishes.
 - **How I’m submitting it:** a **runnable monorepo** ([Run locally](#run-locally)) plus a **hosted demo** ([Live demo](#live-demo) and screenshots above). I can pair this README with a short **Loom** if you want a walkthrough; the write-up is meant to stand alone if you prefer text only.
 
@@ -113,10 +113,10 @@ flowchart TB
 
 | Stage | What it does | Tools and mechanics |
 |--------|----------------|---------------------|
-| **intake** | Normalize URL, build **company_profile** (summary, uncertainties, optional earnings-call hints). | **ReAct** agent with **Tavily** (search), **Firecrawl** (read site), optional **Alpha Vantage** for ticker context; heuristic profile if APIs are unavailable. |
-| **sec_risk** | Resolve latest **10-K**, extract **Item 1A**, distill **risk_theme_bullets** into `sec_risk_dossier`. | **Financial Modeling Prep** for filing metadata/links, HTTP fetch of filing HTML, deterministic **Item 1A** windowing + LLM pass for themes. If that path yields no bullets (private company, no ticker, missing FMP, etc.), an optional **Tavily + Firecrawl web fallback** can infer themes with `risk_theme_source: "web_tools"` (clearly not SEC text). |
+| **intake** | Normalize URL, build **company_profile** (summary, uncertainties, optional listed-equity context when a ticker resolves). | **ReAct** agent with **Tavily** (search), **Firecrawl** (read site), optional **Alpha Vantage** for ticker context; heuristic profile if APIs are unavailable. |
+| **sec_risk** | Read **Item 1A (Risk Factors)** from the target’s latest **Form 10-K** on the **SEC**—management’s **official** list of material risks—then distill those into theme bullets in `sec_risk_dossier`. | **Financial Modeling Prep** finds the SEC filing link; we fetch the filing HTML, isolate Item 1A, and run an LLM pass for themes. **If that does not work** (e.g. no ticker, private company, missing filing, bad extract), we fall back to **Tavily + Firecrawl** to infer themes from the open web and set `risk_theme_source: "web_tools"` so it is explicit that output is **not** from the SEC filing. |
 | **competitor_discover** | Produce **≥3** competitors and map them to the risk / profile context → `competitor_landscape`. | **ReAct** with **Tavily**, **Firecrawl**, optional **NewsAPI**; structured landscape schema. |
-| **peer_research_parallel** | Deep **per-peer** passes (up to **three** peers in parallel). | `asyncio.gather` of **ReAct** sessions (**Tavily**, **NewsAPI**, **Firecrawl**, optional **Alpha Vantage** earnings transcript when `ALPHA_VANTAGE_API_KEY` is set)—each capped by a **recursion limit**; digest per peer in `peer_research_digests`. |
+| **peer_research_parallel** | Deep **per-peer** passes (up to **three** peers in parallel). | `asyncio.gather` of **ReAct** sessions (**Tavily**, **NewsAPI**, **Firecrawl**, optional **Alpha Vantage** listed-equity text when `ALPHA_VANTAGE_API_KEY` is set)—each capped by a **recursion limit**; digest per peer in `peer_research_digests`. |
 | **competitive_strategy** | Terminal synthesis: matrix, prioritized moves, peer deep dives, cross-peer levers, etc. | **OpenAI structured output** (Pydantic) over a packed context window; optional **Tavily** follow-up pass when `STRATEGY_TAVILY_FOLLOWUP` is enabled. |
 
 > [!NOTE]
@@ -132,7 +132,7 @@ ReAct agents do not call the network by magic—they go through small **typed cl
 | **Tavily** | Web **search** snippets fed into intake, competitor, peer, and optional strategy follow-up. | `TAVILY_API_KEY` |
 | **Firecrawl** | **Fetch / markdown** from company and competitor URLs. | `FIRECRAWL_API_KEY` |
 | **Financial Modeling Prep** | **SEC filing metadata** and links (latest **10-K** path for Item 1A). | `FMP_API_KEY` (aliases in `settings.py`) |
-| **Alpha Vantage** | Optional **earnings call transcript** during **intake** (target) and **peer_research_parallel** (each peer, at most one call when a credible ticker exists). | `ALPHA_VANTAGE_API_KEY` |
+| **Alpha Vantage** | Optional **listed-equity text** enrichment during **intake** (target) and **peer_research_parallel** (each peer, at most one fetch when a credible ticker exists). | `ALPHA_VANTAGE_API_KEY` |
 | **NewsAPI** | Optional **headlines** for competitor and peer research agents. | `NEWSAPI_API_KEY` (several alias env names supported) |
 
 **In-process plumbing:** filing HTML and generic HTTP use a shared **`ToolClient`** with **retries** and size limits before any LLM sees the text—so “tools” includes both third-party APIs and **first-party fetch + clip** logic.
@@ -148,8 +148,8 @@ Optional **LangSmith / LangChain** tracing env vars are documented at the bottom
 
 | `GraphState` field | What it holds |
 |--------------------|----------------|
-| `company_profile` | Normalized intake: name, summary, uncertainties, optional earnings hints. |
-| `sec_risk_dossier` | Latest **10-K Item 1A** pass → theme bullets + extraction metadata. |
+| `company_profile` | Normalized intake: name, summary, uncertainties, optional Alpha Vantage–backed ticker fields when configured. |
+| `sec_risk_dossier` | Theme bullets from **SEC Item 1A** when the filing path works; otherwise web-inferred themes with `risk_theme_source` metadata. |
 | `competitor_landscape` | **≥3** (target) competitors, confidence, optional **degraded** flags / reasons. |
 | `peer_research_digests` | Per-peer deep research payloads (parallel paths). |
 | `competitive_strategy` | Final structured strategy object for the dashboard. |
@@ -186,8 +186,8 @@ Optional **LangSmith / LangChain** tracing env vars are documented at the bottom
 > [!NOTE]
 > **This build is optimized for U.S. public companies** (tickers with **10-K / Item 1A** via filing metadata and HTML). The **SEC anchor** is what makes risk themes **comparable** to peer research without hallucinating a private “weakness doc.”
 
-- **Startups, SMBs, and non-U.S. names** still get **intake + web discovery + peer ReAct**, but **Item 1A depth** depends on whether we can resolve a **10-K**—coverage is best where EDGAR-style filings exist.
-- **Why not “everything” on day one?** High-quality company intelligence APIs (**filings, transcripts, premium datasets**) add **cost and integration** surface. We chose a path that **grounds** strategy in **affordable, well-documented** tools (OpenAI + search/crawl + FMP-style filings) instead of burning budget on proprietary startup graphs for a **time-boxed** take-home.
+- **Startups, SMBs, and non-U.S. names** still get **intake + web discovery + peer ReAct**, but **Item 1A depth** depends on whether we can resolve a **10-K**—coverage is best for **U.S. public** companies that publish annual reports the SEC hosts in the usual way.
+- **Why not “everything” on day one?** High-quality company intelligence APIs (**filings, premium datasets**) add **cost and integration** surface. We chose a path that **grounds** strategy in **affordable, well-documented** tools (OpenAI + search/crawl + FMP-style filings) instead of burning budget on proprietary startup graphs for a **time-boxed** take-home.
 - **Natural extensions:** richer private-company packs, founder-market databases, or paid data vendors—when product scope and budget match.
 
 ### How I used AI (Cursor)

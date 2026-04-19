@@ -1,4 +1,5 @@
-# API image — use Railway service Root Directory ``apps/api`` so this is the build context.
+# Local / CI: build from ``apps/api`` (``docker build -f Dockerfile .``).
+# Railway from monorepo root uses repo-root ``Dockerfile.api`` + ``railway.json``.
 FROM python:3.12-slim
 
 WORKDIR /app

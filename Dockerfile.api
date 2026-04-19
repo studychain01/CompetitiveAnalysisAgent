@@ -1,5 +1,5 @@
-# BattleScope API — build context is the **monorepo root** (Railway default).
-# For a slimmer context, set service Root Directory to ``apps/api`` and use ``apps/api/Dockerfile`` instead.
+# Build from monorepo root: ``docker build -f Dockerfile.api .``
+# Used when Railway’s service root is the repo (not ``apps/api``).
 FROM python:3.12-slim
 
 WORKDIR /app

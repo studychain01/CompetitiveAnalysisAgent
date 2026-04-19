@@ -1,4 +1,4 @@
-# Optional Nixpacks hints. On Railway prefer ``Dockerfile`` + ``railway.json`` in this directory.
+# Optional Nixpacks hints. Railway uses repo-root ``Dockerfile.api`` + ``railway.json``.
 
 [phases.install]
 cmds = ["pip install --no-cache-dir ."]

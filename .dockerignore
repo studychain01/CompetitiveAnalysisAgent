@@ -1,13 +1,7 @@
 .git
 **/node_modules
-**/.next
-**/dist
+apps/web/.next
 **/__pycache__
-**/*.pyc
 **/.venv
-**/venv
-**/.pytest_cache
-**/.ruff_cache
 **/.env
 **/.env.*
-**/*.egg-info

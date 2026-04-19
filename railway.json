@@ -2,7 +2,8 @@
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
     "builder": "DOCKERFILE",
-    "dockerfilePath": "Dockerfile"
+    "dockerfilePath": "Dockerfile.api",
+    "watchPatterns": ["apps/api/**", "Dockerfile.api", "railway.json"]
   },
   "deploy": {
     "startCommand": "python -m uvicorn battlescope_api.main:app --host 0.0.0.0 --port $PORT",

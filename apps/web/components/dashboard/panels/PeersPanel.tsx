@@ -184,14 +184,17 @@ function PeerDigestContent({ digest }: { digest: Record<string, unknown> }) {
 
 type PeerEntry = { key: string; row: Record<string, unknown>; displayName: string };
 
+/** Stable fallback so `useMemo` / effects do not see a new object every render. */
+const EMPTY_BY_PEER: Record<string, Record<string, unknown>> = {};
+
 export function PeersPanel({ run }: Props) {
-  const digests = run.peer_research_digests || {};
-  const overall = typeof digests.status === "string" ? digests.status : "";
-  const reason = typeof digests.reason === "string" ? digests.reason : "";
+  const digests = run.peer_research_digests;
+  const overall = digests && typeof digests.status === "string" ? digests.status : "";
+  const reason = digests && typeof digests.reason === "string" ? digests.reason : "";
   const byPeer =
-    digests.by_peer && typeof digests.by_peer === "object"
+    digests?.by_peer && typeof digests.by_peer === "object"
       ? (digests.by_peer as Record<string, Record<string, unknown>>)
-      : {};
+      : EMPTY_BY_PEER;
 
   const entries = useMemo(() => {
     const list: PeerEntry[] = Object.keys(byPeer).map((key) => {
@@ -211,8 +214,9 @@ export function PeersPanel({ run }: Props) {
       setOpenPeerKeys(new Set());
       return;
     }
-    setOpenPeerKeys(new Set(entries[0] ? [entries[0].key] : []));
-  }, [peerFingerprint, entries]);
+    const firstKey = peerFingerprint.split("|")[0] ?? "";
+    setOpenPeerKeys(new Set(firstKey ? [firstKey] : []));
+  }, [peerFingerprint]);
 
   const batchPill =
     overall === "ok"

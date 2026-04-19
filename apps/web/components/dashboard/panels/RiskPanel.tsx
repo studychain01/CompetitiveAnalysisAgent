@@ -240,6 +240,7 @@ export function RiskPanel({ run }: Props) {
 
   const isError = status === "error" || status === "skipped";
   const isPartial = status === "partial";
+  const themeSource = asString(d.risk_theme_source);
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">
@@ -257,6 +258,21 @@ export function RiskPanel({ run }: Props) {
         </p>
         {reason ? <p className="mt-2 leading-relaxed text-muted">{reason}</p> : null}
       </div>
+
+      {themeSource === "web_tools" && bullets.length > 0 ? (
+        <div
+          className="rounded-2xl border border-warning/40 bg-warning/10 px-5 py-4 text-sm leading-relaxed text-fg shadow-sm"
+          role="status"
+        >
+          <p className="font-semibold text-warning">Web-derived themes (not 10-K Item 1A)</p>
+          <p className="mt-2 text-muted">
+            These bullets were produced from <strong className="text-fg">Tavily</strong> and/or{" "}
+            <strong className="text-fg">Firecrawl</strong> public sources because the SEC Item 1A path did not return
+            usable themes for this company. Treat them as <strong className="text-fg">directional</strong>, not
+            regulated disclosure.
+          </p>
+        </div>
+      ) : null}
 
       {status === "skipped" && bullets.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-surface-elevated/80 px-6 py-10 text-center">

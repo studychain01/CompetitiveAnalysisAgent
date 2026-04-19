@@ -93,6 +93,22 @@ def test_stream_start_then_sse_events(monkeypatch: pytest.MonkeyPatch) -> None:
     assert events[-1]["payload"]["stage"] == "competitive_strategy"
 
 
+def test_stream_start_rejects_both_identifiers_empty() -> None:
+    runs_module._compiled_graph.cache_clear()
+    client = TestClient(app)
+    for payload in ({}, {"company_name": "", "company_url": ""}, {"company_name": "  ", "company_url": "\t"}):
+        r = client.post("/runs/start", json=payload)
+        assert r.status_code == 422
+
+
+def test_stream_start_accepts_url_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(runs_module, "build_graph", lambda: _StubCompiledGraph())
+    runs_module._compiled_graph.cache_clear()
+    client = TestClient(app)
+    start = client.post("/runs/start", json={"company_url": "https://acme.test"})
+    assert start.status_code == 202
+
+
 def test_stream_unknown_run_id_yields_error_event() -> None:
     runs_module._compiled_graph.cache_clear()
     client = TestClient(app)

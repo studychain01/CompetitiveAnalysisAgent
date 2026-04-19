@@ -81,10 +81,13 @@ flowchart TB
 | Stage | What it does | Tools and mechanics |
 |--------|----------------|---------------------|
 | **intake** | Normalize URL, build **company_profile** (summary, uncertainties, optional earnings-call hints). | **ReAct** agent with **Tavily** (search), **Firecrawl** (read site), optional **Alpha Vantage** for ticker context; heuristic profile if APIs are unavailable. |
-| **sec_risk** | Resolve latest **10-K**, extract **Item 1A**, distill **risk_theme_bullets** into `sec_risk_dossier`. | **Financial Modeling Prep** for filing metadata/links, HTTP fetch of filing HTML, deterministic **Item 1A** windowing + LLM pass for themes. |
+| **sec_risk** | Resolve latest **10-K**, extract **Item 1A**, distill **risk_theme_bullets** into `sec_risk_dossier`. | **Financial Modeling Prep** for filing metadata/links, HTTP fetch of filing HTML, deterministic **Item 1A** windowing + LLM pass for themes. If that path yields no bullets (private company, no ticker, missing FMP, etc.), an optional **Tavily + Firecrawl web fallback** can infer themes with `risk_theme_source: "web_tools"` (clearly not SEC text). |
 | **competitor_discover** | Produce **≥3** competitors and map them to the risk / profile context → `competitor_landscape`. | **ReAct** with **Tavily**, **Firecrawl**, optional **NewsAPI**; structured landscape schema. |
-| **peer_research_parallel** | Deep **per-peer** passes (up to **three** peers in parallel). | `asyncio.gather` of **ReAct** sessions—same tool family as discovery—each capped by a **recursion limit**; digest per peer in `peer_research_digests`. |
+| **peer_research_parallel** | Deep **per-peer** passes (up to **three** peers in parallel). | `asyncio.gather` of **ReAct** sessions (**Tavily**, **NewsAPI**, **Firecrawl**, optional **Alpha Vantage** earnings transcript when `ALPHA_VANTAGE_API_KEY` is set)—each capped by a **recursion limit**; digest per peer in `peer_research_digests`. |
 | **competitive_strategy** | Terminal synthesis: matrix, prioritized moves, peer deep dives, cross-peer levers, etc. | **OpenAI structured output** (Pydantic) over a packed context window; optional **Tavily** follow-up pass when `STRATEGY_TAVILY_FOLLOWUP` is enabled. |
+
+> [!NOTE]
+> **A joke that is also true:** the competitor-discovery agent sometimes **struggled to name obvious peers** for the same company across runs—enough that we were *genuinely surprised* we had to add a **worked example** (Ford and typical OEM rivals) to `apps/api/src/battlescope_api/prompts/competitor_react_system.md`, as if “use the internet to find who competes with this automaker” were not already implied. If that makes you laugh and cry a little: same.
 
 ### External tools & APIs
 
@@ -96,7 +99,7 @@ ReAct agents do not call the network by magic—they go through small **typed cl
 | **Tavily** | Web **search** snippets fed into intake, competitor, peer, and optional strategy follow-up. | `TAVILY_API_KEY` |
 | **Firecrawl** | **Fetch / markdown** from company and competitor URLs. | `FIRECRAWL_API_KEY` |
 | **Financial Modeling Prep** | **SEC filing metadata** and links (latest **10-K** path for Item 1A). | `FMP_API_KEY` (aliases in `settings.py`) |
-| **Alpha Vantage** | Optional **equity / transcript**-style context during intake when a symbol is available. | `ALPHA_VANTAGE_API_KEY` |
+| **Alpha Vantage** | Optional **earnings call transcript** during **intake** (target) and **peer_research_parallel** (each peer, at most one call when a credible ticker exists). | `ALPHA_VANTAGE_API_KEY` |
 | **NewsAPI** | Optional **headlines** for competitor and peer research agents. | `NEWSAPI_API_KEY` (several alias env names supported) |
 
 **In-process plumbing:** filing HTML and generic HTTP use a shared **`ToolClient`** with **retries** and size limits before any LLM sees the text—so “tools” includes both third-party APIs and **first-party fetch + clip** logic.
@@ -214,6 +217,17 @@ npm run dev:web
 ```
 
 → UI: [http://localhost:3000](http://localhost:3000) · API health: [http://localhost:8000/health](http://localhost:8000/health)
+
+### How to use it
+
+On the **Start a run** form, enter **at least one** of:
+
+- **Company name** — e.g. `Coca-Cola` or `Apple`
+- **Company website** — e.g. `www.coca-cola.com` or `www.apple.com` 
+
+**Examples:** either **Coca-Cola** *or* **www.coca-cola.com**; either **Apple** *or* **www.apple.com**. You can supply both if you like; the app does not require them to “match” the same entity beyond your own intent.
+
+**What works best:** **publicly traded corporations**, especially large U.S. names where the pipeline can resolve **SEC 10-K / Item 1A** and align competitor research to that risk lens. Startups and private companies still get intake and open-web discovery, but filing-grounded sections may be thinner—see [Scope & limitations](#scope--limitations).
 
 | Topic | Detail |
 |--------|--------|

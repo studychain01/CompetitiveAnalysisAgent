@@ -60,7 +60,10 @@ class CompetitorLandscapeLlm(BaseModel):
 
     target_company_context_note: str = Field(
         default="",
-        description="One short line: how you used profile + SEC bullets + tools (for audit).",
+        description=(
+            "One short line: how you used profile + SEC bullets + tools (for audit). "
+            "If fewer than 3 competitors, explain what queries were tried and why evidence was insufficient."
+        ),
     )
     competitors: list[CompetitorEntry] = Field(
         default_factory=list,

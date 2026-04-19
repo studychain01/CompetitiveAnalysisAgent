@@ -113,3 +113,10 @@ def test_create_run_invokes_graph_and_returns_intake_state(monkeypatch: pytest.M
     assert "example" in body["company_profile"]["name"].lower()
     assert isinstance(body["planner_notes"], list)
     assert isinstance(body["trace_events"], list)
+
+
+def test_create_run_rejects_both_identifiers_empty() -> None:
+    runs_module._compiled_graph.cache_clear()
+    client = TestClient(app)
+    r = client.post("/runs", json={"company_name": "", "company_url": None})
+    assert r.status_code == 422

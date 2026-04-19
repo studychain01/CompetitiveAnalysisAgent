@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import uuid
 from collections.abc import AsyncIterator
@@ -6,7 +8,7 @@ from functools import lru_cache
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from battlescope_api.graph.builder import build_graph
 from battlescope_api.graph.state import GraphState
@@ -25,6 +27,14 @@ def _compiled_graph():
 class RunCreateRequest(BaseModel):
     company_name: str | None = Field(default=None, description="Target company name")
     company_url: str | None = Field(default=None, description="Target company URL")
+
+    @model_validator(mode="after")
+    def strip_and_require_name_or_url(self) -> RunCreateRequest:
+        name = (self.company_name or "").strip() or None
+        url = (self.company_url or "").strip() or None
+        if name is None and url is None:
+            raise ValueError("Provide either company_name, company_url, or both (non-empty after trim).")
+        return self.model_copy(update={"company_name": name, "company_url": url})
 
 
 class RunStreamStartResponse(BaseModel):
@@ -151,8 +161,8 @@ async def start_stream_run(body: RunCreateRequest) -> RunStreamStartResponse:
     initial = build_initial_graph_state(
         run_id=run_id,
         thread_id=thread_id,
-        company_name=(body.company_name or "").strip(),
-        company_url=(body.company_url or "").strip(),
+        company_name=body.company_name or "",
+        company_url=body.company_url or "",
     )
     register(run_id, initial)
     events_url = f"/runs/{run_id}/events"
@@ -190,8 +200,8 @@ async def create_run(body: RunCreateRequest) -> RunSyncResponse:
     initial = build_initial_graph_state(
         run_id=run_id,
         thread_id=thread_id,
-        company_name=(body.company_name or "").strip(),
-        company_url=(body.company_url or "").strip(),
+        company_name=body.company_name or "",
+        company_url=body.company_url or "",
     )
 
     try:

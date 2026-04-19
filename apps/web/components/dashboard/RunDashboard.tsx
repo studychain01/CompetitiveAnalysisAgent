@@ -106,6 +106,10 @@ export function RunDashboard() {
     async (e: React.FormEvent) => {
       e.preventDefault();
       setError(null);
+      if (!companyName.trim() && !companyUrl.trim()) {
+        setError("Enter a company name or website URL.");
+        return;
+      }
       setLoading(true);
       setFreezeAt(null);
       setRunStartedAt(Date.now());

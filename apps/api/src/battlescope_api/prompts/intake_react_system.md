@@ -36,6 +36,10 @@ When you have enough to fill a coherent company profile, **stop calling tools**.
 
 Prefer at most **10** Tavily calls and **20** scrapes unless the case is genuinely ambiguous. Stay concise in reasoning; tool outputs are truncated for size.
 
+## If backends are missing
+
+- **Tavily and/or Firecrawl off:** use whatever tools remain; set **lower** `profile_confidence` and spell limits out in **uncertainties**.
+- **`earnings_call_transcript` off or not US-listed:** leave `earnings_call.symbol` / `quarter` as **null** and explain in **uncertainties**—do not pretend you had a transcript.
 
 ## Caution
 

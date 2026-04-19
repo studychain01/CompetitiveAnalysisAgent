@@ -62,17 +62,6 @@ def build_competitor_react_user_brief(
     def _on(ok: bool) -> str:
         return "yes — tool is available this run" if ok else "no — not configured"
 
-    mandatory_news: list[str] = []
-    if newsapi_enabled:
-        mandatory_news = [
-            "",
-            "## Mandatory tool use (this run)",
-            "The **`news_search`** tool is **enabled** (NewsAPI key configured). You **must** call "
-            "`news_search` **at least once** before you produce the final structured competitors "
-            "(e.g. query combining the target company name + “competitors”, “vs”, or industry terms). "
-            "Still use `tavily_search` for web corroboration when helpful.",
-        ]
-
     return "\n".join(
         [
             "## Research task",
@@ -80,11 +69,19 @@ def build_competitor_react_user_brief(
             "Use tools where enabled. Map each competitor to **home SEC Item 1A risk themes** "
             "from the packed context (see system prompt for mapping rules).",
             "",
+            "## Finding competitors atleast 3-5 of them (summary — full ladder in system prompt)",
+            "- Try **several different** news + web query shapes (target + competitors / vs / market; category leaders; "
+            "ticker-based variants if a symbol appears in packed context). Go **broad → narrow**.",
+            "- Use **Firecrawl** on high-value comparison or analyst URLs when enabled to pull **names** from page body, "
+            "not only snippets.",
+            "- **If you cannot find three** after that ladder: return **only** grounded names (never pad with unrelated "
+            "megacaps). Explain briefly in **`target_company_context_note`**; use weak/speculative grades and lower "
+            "confidence. The product will show **degraded** until there are at least three distinct peers.",
+            "",
             "## Enabled backends (this run)",
             f"- Tavily `tavily_search`: {_on(tavily_enabled)}",
             f"- NewsAPI `news_search`: {_on(newsapi_enabled)}",
             f"- Firecrawl `scrape_url`: {_on(firecrawl_enabled)}",
-            *mandatory_news,
             "",
             "## Target identifiers (verbatim / server)",
             f"- company_name: {company_name or '(none)'}",

@@ -23,6 +23,9 @@ if _REPO_ROOT_ENV.is_file():
 
 logger = logging.getLogger(__name__)
 
+# SEC EDGAR: identify the client; ``user.invalid`` is reserved (RFC 2606) — override in production.
+_DEFAULT_SEC_EDGAR_USER_AGENT = "BattleScope/1.0 (mailto:battlescope@user.invalid)"
+
 
 def _looks_like_openai_platform_secret(key: str) -> bool:
     """Heuristic for keys sent to ``api.openai.com`` (not for Azure/custom proxies)."""
@@ -77,16 +80,18 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     openai_base_url: str = "https://api.openai.com"
     openai_model: str = "gpt-4o-mini"
-    intake_context_max_chars: int = 12000
-    # SEC EDGAR requests should identify the client; override in production with a contact URL/email.
-    sec_edgar_user_agent: str = "BattleScope/0.1 (https://example.com/contact; research)"
+    intake_context_max_chars: int = 16_000
+    # SEC EDGAR requests should identify the client; override in production with a real URL or email.
+    sec_edgar_user_agent: str = _DEFAULT_SEC_EDGAR_USER_AGENT
+    
+    #chars that we read from 10K file, later on will stip 1A details before sending to LLM
     sec_risk_filing_download_max_chars: int = 800_000
     sec_risk_excerpt_max_chars: int = 200_000
     competitor_react_recursion_limit: int = 40
-    competitor_context_max_chars: int = 800_000
+    competitor_context_max_chars: int = 200_000
     peer_react_recursion_limit: int = 40
     peer_research_context_max_chars: int = 100_000
-    strategy_context_max_chars: int = 48_000
+    strategy_context_max_chars: int = 200_000
     strategy_allow_tavily_followup: bool = Field(
         default=False,
         validation_alias=AliasChoices("STRATEGY_TAVILY_FOLLOWUP", "strategy_allow_tavily_followup"),
@@ -135,7 +140,7 @@ class Settings(BaseSettings):
     def strip_sec_user_agent(cls, value: str) -> str:
         if isinstance(value, str) and value.strip():
             return value.strip()
-        return "BattleScope/0.1 (https://example.com/contact; research)"
+        return _DEFAULT_SEC_EDGAR_USER_AGENT
 
     @property
     def openai_sdk_base_url(self) -> str:

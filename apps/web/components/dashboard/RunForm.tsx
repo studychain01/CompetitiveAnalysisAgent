@@ -77,7 +77,7 @@ export function RunForm({
           >
             <div>
               <h2 className="text-lg font-semibold text-fg">Start a run</h2>
-              <p className="mt-1 text-sm text-muted">Company name and site URL are enough to begin.</p>
+              <p className="mt-1 text-sm text-muted">Enter at least a company name or a website URL.</p>
             </div>
             <label className="block space-y-1.5">
               <span className="text-xs font-semibold uppercase tracking-wide text-subtle">Company name</span>
@@ -109,7 +109,7 @@ export function RunForm({
             ) : null}
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || (!companyName.trim() && !companyUrl.trim())}
               className="flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? (

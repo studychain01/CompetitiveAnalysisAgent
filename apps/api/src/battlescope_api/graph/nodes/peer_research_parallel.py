@@ -18,6 +18,7 @@ from battlescope_api.graph.state import GraphState
 from battlescope_api.models.peer_research_digest import empty_peer_research_payload
 from battlescope_api.services.trace import append_trace_event
 from battlescope_api.settings import get_settings
+from battlescope_api.tools.alphavantage_client import AlphaVantageClient
 from battlescope_api.tools.firecrawl_client import FirecrawlClient
 from battlescope_api.tools.http_client import create_http_client
 from battlescope_api.tools.newsapi_client import NewsApiClient
@@ -139,6 +140,7 @@ async def peer_research_parallel_node(state: GraphState) -> GraphState:
     news_on = bool(settings.newsapi_api_key)
     tav_on = bool(settings.tavily_api_key)
     fc_on = bool(settings.firecrawl_api_key)
+    av_on = bool(settings.alphavantage_api_key)
 
     keyed_peers = _assign_unique_peer_keys(peers)
     logger.info(
@@ -162,6 +164,7 @@ async def peer_research_parallel_node(state: GraphState) -> GraphState:
             tavily_enabled=tav_on,
             newsapi_enabled=news_on,
             firecrawl_enabled=fc_on,
+            alphavantage_enabled=av_on,
         )
         try:
             async with create_http_client() as raw_client:
@@ -174,11 +177,13 @@ async def peer_research_parallel_node(state: GraphState) -> GraphState:
                 tavily = TavilyClient(settings.tavily_api_key, http_tool)
                 newsapi = NewsApiClient(settings.newsapi_api_key, http_tool)
                 firecrawl = FirecrawlClient(settings.firecrawl_api_key, http_tool)
+                alphavantage = AlphaVantageClient(settings.alphavantage_api_key, http_tool)
                 sr, react_notes = await run_peer_react_research(
                     settings=settings,
                     tavily=tavily,
                     newsapi=newsapi,
                     firecrawl=firecrawl,
+                    alphavantage=alphavantage,
                     human_brief=brief,
                     peer_key=key,
                     peer_display_name=str(peer.get("display_name") or "").strip() or None,

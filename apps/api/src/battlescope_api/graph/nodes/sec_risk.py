@@ -3,6 +3,9 @@ Post-intake graph node (second step after IntakeProfiler): latest 10-K Item 1A (
 → theme bullets in ``sec_risk_dossier``.
 
 Uses ``company_profile["earnings_call"]["symbol"]`` when set (same ticker field used for transcripts).
+
+If Item 1A cannot be produced (private issuer, missing FMP/ticker, fetch/extract failure), a **web fallback**
+(Tavily and/or Firecrawl + LLM) may fill ``risk_theme_bullets`` with ``risk_theme_source: "web_tools"``.
 """
 
 from __future__ import annotations
@@ -23,8 +26,10 @@ from battlescope_api.graph.nodes.sec_risk_html_extract import (
 from battlescope_api.graph.state import GraphState
 from battlescope_api.services.trace import append_trace_event
 from battlescope_api.settings import Settings, get_settings
+from battlescope_api.tools.firecrawl_client import FirecrawlClient
 from battlescope_api.tools.fmp_client import FinancialModelingPrepClient
 from battlescope_api.tools.http_client import create_http_client
+from battlescope_api.tools.tavily_client import TavilyClient
 from battlescope_api.tools.tool_client import ToolClient
 
 logger = logging.getLogger(__name__)
@@ -328,6 +333,203 @@ async def _summarize_excerpt_to_bullets(
     return _heuristic_bullets_from_excerpt(clip)
 
 
+_WEB_FALLBACK_PACK_MAX_CHARS = 28_000
+
+
+def _entity_display_label(profile: dict[str, Any], state: GraphState) -> str:
+    name = profile.get("name")
+    if isinstance(name, str) and name.strip():
+        return name.strip()
+    cn = state.get("company_name")
+    if isinstance(cn, str) and cn.strip():
+        return cn.strip()
+    return ""
+
+
+def _format_tavily_block_for_pack(payload: dict[str, Any], *, snippet_max: int = 650) -> str:
+    lines: list[str] = []
+    for idx, item in enumerate(payload.get("results") or [], start=1):
+        title = item.get("title") or ""
+        url = item.get("url") or ""
+        content = (item.get("content") or "").strip()
+        if len(content) > snippet_max:
+            content = content[: snippet_max - 1].rstrip() + "…"
+        lines.append(f"{idx}. {title}\n   URL: {url}\n   Snippet: {content}")
+    return "\n\n".join(lines) if lines else ""
+
+
+def _firecrawl_markdown_from_payload(payload: dict[str, Any]) -> str:
+    if payload.get("success") is False:
+        return ""
+    data = payload.get("data") or {}
+    md = data.get("markdown") or payload.get("markdown") or ""
+    return str(md).strip()
+
+
+def _clip_web_pack(text: str, max_chars: int) -> str:
+    t = (text or "").strip()
+    if len(t) <= max_chars:
+        return t
+    return t[: max_chars - 24] + "\n...[web pack truncated]..."
+
+
+async def _gather_web_risk_pack(
+    *,
+    settings: Settings,
+    profile: dict[str, Any],
+    state: GraphState,
+    http_tool: ToolClient,
+) -> tuple[str, list[str]]:
+    """Tavily snippets + optional Firecrawl homepage; returns (combined text, source URLs)."""
+    label = _entity_display_label(profile, state) or "the target company"
+    chunks: list[str] = []
+    urls: list[str] = []
+
+    if settings.tavily_api_key:
+        tavily = TavilyClient(settings.tavily_api_key, http_tool)
+        queries = [
+            f'"{label}" company risks challenges business',
+            f'"{label}" competition market regulatory industry',
+        ]
+        sym = profile.get("earnings_call") if isinstance(profile.get("earnings_call"), dict) else {}
+        raw_sym = sym.get("symbol") if isinstance(sym, dict) else None
+        if isinstance(raw_sym, str) and raw_sym.strip():
+            t = raw_sym.strip().upper()
+            queries.append(f"{t} stock risks analyst concerns")
+        for q in queries:
+            try:
+                payload = await tavily.search(q, max_results=5)
+                block = _format_tavily_block_for_pack(payload)
+                if block.strip():
+                    chunks.append(f"## Tavily: {q}\n\n{block}")
+                for item in payload.get("results") or []:
+                    u = item.get("url")
+                    if isinstance(u, str) and u.strip():
+                        urls.append(u.strip())
+            except Exception as exc:
+                logger.warning("sec_risk_web_tavily_failed", extra={"query": q[:80], "error": str(exc)})
+
+    if settings.firecrawl_api_key:
+        raw_u = state.get("company_url_normalized")
+        u = raw_u.strip() if isinstance(raw_u, str) else ""
+        if u.startswith(("http://", "https://")):
+            try:
+                fc = FirecrawlClient(settings.firecrawl_api_key, http_tool)
+                payload = await fc.scrape_url(u)
+                md = _firecrawl_markdown_from_payload(payload)
+                if md:
+                    cap = min(12_000, _WEB_FALLBACK_PACK_MAX_CHARS // 2)
+                    chunks.append(f"## Firecrawl homepage ({u})\n\n{md[:cap]}")
+                    urls.append(u)
+            except Exception as exc:
+                logger.warning("sec_risk_web_firecrawl_failed", extra={"url": u[:120], "error": str(exc)})
+
+    pack = _clip_web_pack("\n\n".join(chunks), _WEB_FALLBACK_PACK_MAX_CHARS)
+    dedup_urls: list[str] = []
+    seen: set[str] = set()
+    for x in urls:
+        if x not in seen:
+            seen.add(x)
+            dedup_urls.append(x)
+    return pack, dedup_urls[:30]
+
+
+async def _summarize_web_pack_to_bullets(
+    settings: Settings,
+    pack: str,
+    entity_label: str,
+) -> list[str]:
+    clip = snap_truncation_to_word_boundary(
+        pack,
+        min(len(pack), settings.sec_risk_excerpt_max_chars + 8000),
+        lookback=min(2000, settings.sec_risk_excerpt_max_chars),
+    )
+    if not clip.strip():
+        return []
+    if not settings.openai_api_key:
+        return _heuristic_bullets_from_excerpt(clip, max_bullets=8)
+    model = ChatOpenAI(
+        api_key=settings.openai_api_key,
+        base_url=settings.openai_sdk_base_url,
+        model=settings.openai_model,
+        temperature=0.15,
+    )
+    structured = model.with_structured_output(SecRiskThemeBullets)
+    label = entity_label or "the target company"
+    msg = HumanMessage(
+        content=(
+            "## Context\n"
+            "You are helping a **competitive intelligence** pipeline (BattleScope). The text below is **NOT** "
+            "from an SEC filing. It is a **clip of public web snippets and/or a scraped company page** "
+            "(search results, news, marketing copy, blogs). It may be incomplete, promotional, or wrong.\n\n"
+            "## Task\n"
+            f"From this material only, infer **material business risk themes** for **{label}** as a going concern: "
+            "competition, demand, regulation, operations, supply chain, cyber, talent, financing, litigation, "
+            "geography, technology, etc. **Do not** claim these are SEC “Risk Factors” or Item 1A language.\n"
+            "- **Paraphrase**; do not invent facts not supported by the clip.\n"
+            "- If the clip is thin, emit **fewer** substantive bullets rather than padding.\n"
+            "- No buy/sell/hold or investment advice.\n\n"
+            "## Output shape\n"
+            "- Produce **6–10 bullets** in `bullets` (cap at 10).\n"
+            "- Each bullet **roughly 35–80 words**, plain prose, no numbering.\n\n"
+            "## Web clip\n\n"
+            f"{clip}"
+        )
+    )
+    try:
+        out = await structured.ainvoke([msg])
+        if isinstance(out, SecRiskThemeBullets):
+            return [b.strip() for b in out.bullets if b.strip()][:10]
+        if isinstance(out, dict):
+            raw = out.get("bullets") or []
+            return [str(b).strip() for b in raw if str(b).strip()][:10]
+    except Exception as exc:
+        logger.warning("sec_risk_web_summarize_failed", extra={"error": str(exc)})
+    return _heuristic_bullets_from_excerpt(clip, max_bullets=8)
+
+
+def _dossier_from_web_fallback(
+    prior: dict[str, Any],
+    *,
+    bullets: list[str],
+    categories: list[str] | None,
+    headlines: list[str] | None,
+    source_urls: list[str],
+) -> dict[str, Any]:
+    pri_status = str(prior.get("status") or "")
+    pri_reason = prior.get("reason")
+    pri_sym = prior.get("symbol")
+    tail = f" Original SEC path note: {pri_reason}" if pri_reason else ""
+    reason = (
+        f"SEC Item 1A was not available ({pri_status}). "
+        f"Risk themes below are **inferred from public web sources** (Tavily/Firecrawl), not 10-K filing text.{tail}"
+    )
+    out: dict[str, Any] = {
+        "status": "ok",
+        "symbol": pri_sym,
+        "reason": reason[:2500],
+        "filing": None,
+        "risk_theme_bullets": bullets,
+        "risk_theme_source": "web_tools",
+        "prior_sec_attempt": {"status": pri_status, "reason": pri_reason, "symbol": pri_sym},
+        "web_source_urls": source_urls[:25],
+        "extraction": {
+            "method": "web_tools",
+            "confidence": "low",
+            "notes": [
+                "risk_theme_bullets produced from Tavily search snippets and/or Firecrawl homepage markdown.",
+            ],
+            "start_fragment": None,
+            "end_marker": None,
+        },
+    }
+    if categories:
+        out["risk_theme_categories"] = categories
+    if headlines:
+        out["risk_theme_headlines"] = headlines
+    return out
+
+
 async def _fetch_filing_html(
     tool: ToolClient,
     url: str,
@@ -521,6 +723,57 @@ async def sec_risk_node(state: GraphState) -> GraphState:
             notes.append(f"SecRisk10K: partial — {dossier.get('reason')}")
         elif st == "error" and dossier.get("reason"):
             notes.append(f"SecRisk10K: error — {dossier.get('reason')}")
+
+    pri_bullets = list(dossier.get("risk_theme_bullets") or [])
+    pri_status = str(dossier.get("status") or "")
+    if (
+        not pri_bullets
+        and settings.openai_api_key
+        and (settings.tavily_api_key or settings.firecrawl_api_key)
+        and pri_status in ("no_filing", "skipped", "error", "partial")
+    ):
+        prof = profile if isinstance(profile, dict) else {}
+        try:
+            async with create_http_client() as raw_client:
+                web_tool = ToolClient(
+                    raw_client,
+                    max_retries=settings.http_max_retries,
+                    backoff_base_s=settings.http_backoff_base_s,
+                    retryable_methods=frozenset({"GET", "POST"}),
+                )
+                pack, source_urls = await _gather_web_risk_pack(
+                    settings=settings,
+                    profile=prof,
+                    state=state,
+                    http_tool=web_tool,
+                )
+            if pack.strip():
+                label = _entity_display_label(prof, state)
+                fb_bullets = await _summarize_web_pack_to_bullets(settings, pack, label)
+                if fb_bullets:
+                    cats, heads = await _label_risk_bullet_categories(settings, fb_bullets)
+                    dossier = _dossier_from_web_fallback(
+                        dossier,
+                        bullets=fb_bullets,
+                        categories=cats,
+                        headlines=heads,
+                        source_urls=source_urls,
+                    )
+                    notes.append(
+                        f"SecRisk10K: web fallback produced {len(fb_bullets)} theme(s) "
+                        "(Tavily/Firecrawl; not SEC Item 1A)."
+                    )
+                    logger.info(
+                        "sec_risk_web_fallback_applied",
+                        extra={"bullet_count": len(fb_bullets), "prior_status": pri_status},
+                    )
+                else:
+                    notes.append("SecRisk10K: web fallback produced no bullets after LLM pass.")
+            else:
+                notes.append("SecRisk10K: web fallback skipped (no Tavily/Firecrawl text retrieved).")
+        except Exception as exc:
+            logger.warning("sec_risk_web_fallback_failed", extra={"error": str(exc)})
+            notes.append(f"SecRisk10K: web fallback failed ({type(exc).__name__}): {exc}")
 
     append_trace_event(events, "node_end", run_id, "SecRisk10K")
 

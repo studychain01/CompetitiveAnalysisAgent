@@ -18,6 +18,7 @@ from battlescope_api.graph.nodes.competitor_react_agent import (
 )
 from battlescope_api.models.peer_research_digest import PeerResearchDigestLlm
 from battlescope_api.settings import Settings
+from battlescope_api.tools.alphavantage_client import AlphaVantageClient, format_earnings_transcript_for_llm
 from battlescope_api.tools.firecrawl_client import FirecrawlClient
 from battlescope_api.tools.newsapi_client import NewsApiClient, format_newsapi_block
 from battlescope_api.tools.tavily_client import TavilyClient
@@ -42,9 +43,19 @@ def build_peer_react_user_brief(
     tavily_enabled: bool,
     newsapi_enabled: bool,
     firecrawl_enabled: bool,
+    alphavantage_enabled: bool,
 ) -> str:
     def _on(ok: bool) -> str:
         return "yes — tool is available this run" if ok else "no — not configured"
+
+    av_line = _on(alphavantage_enabled)
+    if alphavantage_enabled:
+        av_line += (
+            ". **When the peer is a plausible US-listed equity**, call `earnings_call_transcript` **at most once** "
+            "with that peer’s **symbol** (from the brief’s ticker if credible, else confirm via Tavily) and a recent "
+            "**completed** fiscal `quarter` as YYYYQ1..YYYYQ4 (e.g. 2025Q4). Skip if private, ADR ambiguity, or "
+            "symbol unclear—note in `evidence_notes`."
+        )
 
     return "\n".join(
         [
@@ -66,6 +77,7 @@ def build_peer_react_user_brief(
             f"- Tavily `tavily_search`: {_on(tavily_enabled)}",
             f"- NewsAPI `news_search`: {_on(newsapi_enabled)}",
             f"- Firecrawl `scrape_url`: {_on(firecrawl_enabled)}",
+            f"- Alpha Vantage `earnings_call_transcript`: {av_line}",
         ]
     )
 
@@ -75,6 +87,7 @@ def build_peer_react_graph(
     tavily: TavilyClient,
     newsapi: NewsApiClient,
     firecrawl: FirecrawlClient,
+    alphavantage: AlphaVantageClient,
     *,
     agent_graph_name: str = "peer_deep_research",
 ) -> CompiledStateGraph:
@@ -116,6 +129,23 @@ def build_peer_react_graph(
         md = _firecrawl_markdown(payload)
         return _clip(md, max_ctx) if md.strip() else "(empty markdown)"
 
+    @tool
+    async def earnings_call_transcript(symbol: str, quarter: str) -> str:
+        """
+        **Primary source:** earnings call transcript for a US-listed equity (Alpha Vantage).
+
+        Call **at most once** for **this peer** when the Human brief says Alpha Vantage is enabled and you have a
+        **credible symbol** for the peer (brief ticker or Tavily-confirmed). Use fiscal `quarter` as YYYYQ1..YYYYQ4
+        for a recent **completed** quarter likely to have a full transcript (not the current in-progress quarter if
+        the API often returns empty).
+        """
+        try:
+            payload = await alphavantage.earnings_call_transcript(symbol, quarter)
+        except Exception as exc:
+            logger.warning("peer_react_alphavantage_tool_error", extra={"error": str(exc)})
+            return f"Alpha Vantage error ({type(exc).__name__}): {exc}"
+        return format_earnings_transcript_for_llm(payload, max_chars=max_ctx)
+
     if not settings.openai_api_key:
         raise RuntimeError("OPENAI_API_KEY is required for peer ReAct")
 
@@ -139,6 +169,13 @@ def build_peer_react_graph(
     else:
         logger.debug(
             "peer_react_firecrawl_tool_omitted",
+            extra={"reason": "missing_api_key", "graph": agent_graph_name},
+        )
+    if settings.alphavantage_api_key:
+        tools.append(earnings_call_transcript)
+    else:
+        logger.debug(
+            "peer_react_alphavantage_tool_omitted",
             extra={"reason": "missing_api_key", "graph": agent_graph_name},
         )
 
@@ -171,6 +208,7 @@ async def run_peer_react_research(
     tavily: TavilyClient,
     newsapi: NewsApiClient,
     firecrawl: FirecrawlClient,
+    alphavantage: AlphaVantageClient,
     human_brief: str,
     recursion_limit: int | None = None,
     peer_key: str | None = None,
@@ -190,6 +228,7 @@ async def run_peer_react_research(
         tavily,
         newsapi,
         firecrawl,
+        alphavantage,
         agent_graph_name=f"peer_deep_{safe_name}",
     )
     try:

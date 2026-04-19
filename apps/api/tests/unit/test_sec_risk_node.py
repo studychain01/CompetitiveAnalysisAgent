@@ -21,6 +21,10 @@ async def test_sec_risk_skipped_without_fmp_key(
     # Override any FMP key from ``.env`` (pydantic loads the file even when env var is unset).
     monkeypatch.setenv("FMP_API_KEY", "")
     monkeypatch.setenv("FINANCIAL_MODELING_PREP_API_KEY", "")
+    # Disable web fallback so this test stays deterministic (no live Tavily/OpenAI).
+    monkeypatch.setenv("OPENAI_API_KEY", "")
+    monkeypatch.setenv("TAVILY_API_KEY", "")
+    monkeypatch.setenv("FIRECRAWL_API_KEY", "")
     get_settings.cache_clear()
 
     state: GraphState = {
@@ -41,6 +45,9 @@ async def test_sec_risk_skipped_without_ticker(
     monkeypatch: pytest.MonkeyPatch, clear_settings_cache
 ) -> None:
     monkeypatch.setenv("FMP_API_KEY", "dummy-fmp-key-for-test")
+    monkeypatch.setenv("OPENAI_API_KEY", "")
+    monkeypatch.setenv("TAVILY_API_KEY", "")
+    monkeypatch.setenv("FIRECRAWL_API_KEY", "")
     get_settings.cache_clear()
 
     state: GraphState = {

@@ -6,6 +6,7 @@ from battlescope_api.graph.nodes.competitive_strategy import competitive_strateg
 from battlescope_api.graph.state import GraphState
 from battlescope_api.models.competitive_strategy import (
     CompetitiveStrategyLlm,
+    CrossPeerLever,
     HorizonPlan,
     PeerStrategyDeepDive,
     PrioritizedMove,
@@ -75,9 +76,15 @@ async def test_competitive_strategy_mocked_synthesis(
         ],
         short_term_plan=HorizonPlan(horizon_label="0–90d", bullets=["Milestone A"]),
         long_term_plan=HorizonPlan(horizon_label="6–24m", bullets=["Platform bet"]),
-        low_hanging_fruits=["Partner with one ISV"],
-        long_term_targets=["Own workflow category"],
-        non_goals=["Price war with leader"],
+        cross_peer_levers=[
+            CrossPeerLever(
+                headline="Ecosystem depth",
+                pattern="PEER and others lead on integration breadth.",
+                home_gap="HomeCo has fewer marquee connectors.",
+                move="Prioritize one vertical integration spine.",
+                evidence_tier="mixed",
+            )
+        ],
     )
 
     async def _fake_synth(*_a: object, **_kw: object) -> CompetitiveStrategyLlm | None:
@@ -107,5 +114,8 @@ async def test_competitive_strategy_mocked_synthesis(
     assert isinstance(dives, list) and dives
     assert dives[0].get("peer_name") == "PEER"
     assert strat.get("prioritized_moves")
+    levers = strat.get("cross_peer_levers") or []
+    assert isinstance(levers, list) and levers
+    assert levers[0].get("headline") == "Ecosystem depth"
     events = out.get("trace_events") or []
     assert any(e.get("message") == "CompetitiveStrategy" for e in events)

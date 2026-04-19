@@ -82,9 +82,9 @@ class Settings(BaseSettings):
     sec_edgar_user_agent: str = "BattleScope/0.1 (https://example.com/contact; research)"
     sec_risk_filing_download_max_chars: int = 800_000
     sec_risk_excerpt_max_chars: int = 200_000
-    competitor_react_recursion_limit: int = 20
+    competitor_react_recursion_limit: int = 40
     competitor_context_max_chars: int = 800_000
-    peer_react_recursion_limit: int = 25
+    peer_react_recursion_limit: int = 40
     peer_research_context_max_chars: int = 100_000
     strategy_context_max_chars: int = 48_000
     strategy_allow_tavily_followup: bool = Field(

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -53,6 +53,29 @@ class HorizonPlan(BaseModel):
     bullets: list[str] = Field(
         default_factory=list,
         description="Concrete, scannable actions (no wall of text per bullet).",
+    )
+
+
+class CrossPeerLever(BaseModel):
+    """Thematic compression: pattern many peers share vs target gap—distinct from prioritized_move titles."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    headline: str = Field(description="Short scan line the reader sees first (≤ ~80 chars when possible).")
+    pattern: str = Field(
+        description="What multiple peers are doing similarly; one sentence; name peers when grounded in digests/landscape.",
+    )
+    home_gap: str = Field(description="Where the target is missing or underweight vs that pattern; one sentence.")
+    move: str = Field(
+        description="One concrete focus (build / partner / reposition); do not duplicate a prioritized_move title verbatim.",
+    )
+    home_edge: str = Field(
+        default="",
+        description="Unused in UI; leave empty. Differentiation vs peers belongs in peer_deep_dives / matrix.",
+    )
+    evidence_tier: Literal["strong", "mixed", "thin"] = Field(
+        default="mixed",
+        description="strong = clear multi-peer signal in provided context; thin = weak signal—use cautious wording.",
     )
 
 
@@ -107,11 +130,22 @@ class CompetitiveStrategyLlm(BaseModel):
     long_term_plan: HorizonPlan = Field(
         default_factory=lambda: HorizonPlan(horizon_label="6–24 months", bullets=[]),
     )
-    low_hanging_fruits: list[str] = Field(default_factory=list, description="Quick wins; each one line when possible.")
-    long_term_targets: list[str] = Field(default_factory=list)
+    cross_peer_levers: list[CrossPeerLever] = Field(
+        default_factory=list,
+        max_length=3,
+        description="Max 3 cross-peer themes: shared competitor pattern → target gap → one focus move; optional home_edge.",
+    )
+    low_hanging_fruits: list[str] = Field(
+        default_factory=list,
+        description="Legacy; prefer cross_peer_levers. Leave empty unless needed for backward compatibility.",
+    )
+    long_term_targets: list[str] = Field(
+        default_factory=list,
+        description="Legacy; prefer cross_peer_levers. Leave empty unless needed for backward compatibility.",
+    )
     non_goals: list[str] = Field(
         default_factory=list,
-        description="Symmetric fights or bets to avoid given evidence.",
+        description="Legacy; prefer cross_peer_levers. Leave empty unless needed for backward compatibility.",
     )
     input_quality: InputQuality = Field(default_factory=InputQuality)
 

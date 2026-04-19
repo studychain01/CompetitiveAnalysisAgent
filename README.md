@@ -8,6 +8,17 @@
 
 Autonomous **competitive research and strategy**: you provide a company name or URL, and the system discovers rivals, gathers evidence on the open web, and returns a **structured** teardown plus priorities—meant to be read in a dashboard, not as one long essay.
 
+## What I built (take-home scope)
+
+Here is what I shipped against the brief, in plain terms:
+
+- **Input:** I built a **Next.js** flow where you enter a company **name** and/or **URL** (either is enough).
+- **Discover:** I wired autonomous competitor discovery toward **≥3** named rivals (prompt + Pydantic schema). When the evidence stack is thin after dedupe, `competitor_landscape` surfaces **`degraded`** instead of faking a full shortlist.
+- **Research:** I used **bounded ReAct** for intake, discovery, and peer passes, backed by **real tools** (search, crawl, optional headlines / transcripts / filing metadata)—not one monolithic “ask the model everything” call.
+- **Analyze + strategize:** Where a **10-K Item 1A** path resolves, I anchor peer comparison on that **shared risk lens**, then land a **structured** strategy object the UI splits into **tabs** (risk, landscape, peers, strategy) so you can scan it quickly.
+- **Real-time UI:** I stream **`trace_events`** over **`GET /runs/{id}/events`** (**SSE**) so you see **which stage is running** instead of waiting on a silent spinner until the graph finishes.
+- **How I’m submitting it:** a **runnable monorepo** ([Run locally](#run-locally)); I’m **not** assuming a hosted demo—please run API + web locally. I can pair this README with a short **Loom** if you want a walkthrough; the write-up is meant to stand alone if you prefer text only.
+
 ## Problem and approach
 
 > **In one line:** anchor open-web research in **regulated filings (10-K Item 1A)**, then **discover ≥3 competitors**, **deep-dive** the top peers, and ship a **structured** strategy the dashboard can scan—not one long essay.
@@ -162,6 +173,12 @@ Optional **LangSmith / LangChain** tracing env vars are documented at the bottom
 | **Helped** | **I steered** |
 |------------|---------------|
 | Fast scaffolding (API routes, graph nodes, types); **Strategy tab** layout; **README** structure + Mermaid. | **Linear graph** + bounded ReAct—not one mega-agent. **Degraded / partial** UX + **grounding** in prompts & schemas when drafts read too confident. |
+
+**Where I overrode or corrected the model / assistant (not just “vibes”):**
+
+- **Architecture:** kept **stage boundaries** (intake → SEC risk → discover → parallel peers → strategy) instead of collapsing into one prompt—matches the spec’s **Discover → Research → Analyze → Strategize** story and keeps SSE meaningful.
+- **Prompts & contracts:** tightened competitor discovery (including a **worked OEM example** when the agent kept under-naming obvious peers—called out in the `competitor_discover` section above) and **SEC vs web** labeling when Item 1A is missing (`risk_theme_source: "web_tools"`).
+- **Product judgment:** **“Degrade, don’t lie”** in UI and payloads when keys or filings are missing; rejected “confident generic strategy” drafts in favor of **evidence-linked** structured fields the dashboard can show honestly.
 
 ### Key decisions
 

@@ -1,0 +1,10 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "buildCommand": "pip install --no-cache-dir ./apps/api"
+  },
+  "deploy": {
+    "startCommand": "cd apps/api && python -m uvicorn battlescope_api.main:app --host 0.0.0.0 --port $PORT",
+    "healthcheckPath": "/health"
+  }
+}

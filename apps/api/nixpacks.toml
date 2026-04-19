@@ -1,5 +1,5 @@
-# Railway / Nixpacks: set service Root Directory to ``apps/api`` so this file is used.
-# Ensures the package + deps install before start (fixes ``uvicorn: command not found``).
+# Nixpacks (optional). For Railway, the repo-root ``railway.json`` is what actually
+# overrides the dashboard start command unless you set Config path to ``/apps/api/railway.json``.
 
 [phases.install]
 cmds = ["pip install --no-cache-dir ."]

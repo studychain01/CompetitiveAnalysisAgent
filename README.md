@@ -69,15 +69,42 @@ flowchart TB
 
 ### Memory model
 
-There is **no cross-run database** in the take-home scope. **Memory for a single run** is the LangGraph **`GraphState`** (`apps/api/src/battlescope_api/graph/state.py`): fields like `company_profile`, `sec_risk_dossier`, `competitor_landscape`, `peer_research_digests`, `competitive_strategy`, plus `trace_events` and `planner_notes` for transparency. Each node returns updates; the graph merges that into the next step—so the “notebook” is **explicit state**, not hidden chain-of-thought. A future version could add durable runs or **episodic** memory (“how we fixed this class of failure last time”); that is not required for a stateless submission.
+> **In one line:** there is **no durable DB** for the take-home—everything worth keeping for a run lives in LangGraph **`GraphState`**, so the “memory” is **inspectable JSON-shaped fields**, not hidden scratchpad text.
+
+| `GraphState` field | What it holds |
+|--------------------|----------------|
+| `company_profile` | Normalized intake: name, summary, uncertainties, optional earnings hints. |
+| `sec_risk_dossier` | Latest **10-K Item 1A** pass → theme bullets + extraction metadata. |
+| `competitor_landscape` | **≥3** (target) competitors, confidence, optional **degraded** flags / reasons. |
+| `peer_research_digests` | Per-peer deep research payloads (parallel paths). |
+| `competitive_strategy` | Final structured strategy object for the dashboard. |
+| `trace_events` | **Append-only** timeline for SSE / “agent is working” UI. |
+| `planner_notes` | Short human-readable breadcrumbs alongside the graph. |
+
+**How it behaves**
+
+- Each node **reads** prior fields and **returns patches**; the graph **merges** them forward—same contract every stage.
+- That is the whole **run notebook**: no separate chain-of-thought store; transparency is **state + traces**.
+
+> [!TIP]
+> **Stateless submission:** no cross-run database is required. A **future** version could add persisted runs, eval sets, or **episodic** memory (“how we unblocked this failure mode last time”); not in scope here.
+
+---
 
 ### Rescue plan (when things go wrong)
 
-- **Observability first:** every node appends to **`trace_events`**; the web client consumes **SSE** (`GET /runs/{id}/events`) so users see **which stage** is running and when it finished—requirement-aligned “show the agent working.”
-- **Graceful skips:** if **`OPENAI_API_KEY`** is missing, LLM-backed nodes return a **skipped** strategy payload instead of failing the whole process silently.
-- **Degrade, don’t lie:** low intake confidence sets **`intake_degraded`** on the profile; thin or partial competitor sets set **`degraded`** / notes on **`competitor_landscape`**; the strategy step carries **`input_quality`** and can mark the artifact **partial** when upstream evidence is incomplete—**the UI surfaces that**, instead of printing confident fiction.
-- **Hard caps:** large filings and web payloads are **clipped** before model calls; ReAct agents use **recursion limits** (see `apps/api/src/battlescope_api/settings.py`) so a stuck tool loop cannot run forever.
-- **Network resilience:** outbound calls go through a shared HTTP layer with **retries** on transient failures where configured.
+> **Principle:** **fail visible**, cap cost, and **never** pretend the competitor set or filings are complete when they are not.
+
+| Layer | What we do |
+|--------|------------|
+| **See it** | Every node logs **`trace_events`**; the UI consumes **SSE** on `GET /runs/{run_id}/events` so users see **which stage** is active and when it completes. |
+| **Skip cleanly** | Missing **`OPENAI_API_KEY`** → LLM nodes return **`skipped`** / empty artifacts with a clear reason instead of a blind 500. |
+| **Degrade honestly** | **`intake_degraded`** when profile confidence is low; **`competitor_landscape.degraded`** + notes when the shortlist is thin; strategy carries **`input_quality`** and can be **`partial`**—**the dashboard shows that**, not fake confidence. |
+| **Stop runaway work** | Filings and web payloads are **clipped** to max chars before the model; ReAct agents use **recursion limits** in `settings.py` so tool loops cannot spin forever. |
+| **Ride network blips** | Shared HTTP client applies **retries** on transient failures where configured. |
+
+> [!IMPORTANT]
+> **“Degrade, don’t lie”** is the product default: when upstream evidence is incomplete, the UI and payload say so—so reviewers see **judgment**, not hallucinated completeness.
 
 *Still to add: how we used AI coding assistants, and “another day” roadmap.*
 

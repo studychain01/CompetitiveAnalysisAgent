@@ -1,5 +1,11 @@
 # BattleScope
 
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=next.js&logoColor=white)](https://nextjs.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![LangGraph](https://img.shields.io/badge/LangGraph-orchestration-1C3C3C?logo=langchain&logoColor=white)](https://langchain-ai.github.io/langgraph/)
+[![SSE](https://img.shields.io/badge/Runs-SSE%20stream-7C3AED)](#api-fastapi--langgraph-scaffold)
+
 Autonomous **competitive research and strategy**: you provide a company name or URL, and the system discovers rivals, gathers evidence on the open web, and returns a **structured** teardown plus priorities—meant to be read in a dashboard, not as one long essay.
 
 ## Problem and approach
@@ -15,11 +21,17 @@ Autonomous **competitive research and strategy**: you provide a company name or 
 | **Analyze** | Compare the **target** vs peers against a **shared** risk lens. |
 | **Strategize** | Concrete, **tabbed** outputs (risk, landscape, peers, strategy)—not generic advice. |
 
+> [!TIP]
+> Those four pillars map directly to the **Discover → Research → Analyze → Strategize** loop in the take-home brief—implemented as **explicit graph stages** plus a **scannable** dashboard instead of one long report.
+
 ### The hard part: grounding
 
 - **Marketing sites** sell certainty; **SEO articles** often repeat the same lines.
 - We still **need the web** for *who is in the market* and *what they are doing now*.
 - We needed a **second source** that behaves more like **due diligence** than brand copy.
+
+> [!WARNING]
+> **Web-only** competitive “research” tends to **rhyme** across blogs—pretty sentences, weak provenance. We treat the open web as **necessary** for freshness and rival discovery, but **not sufficient** as the only ground truth.
 
 ### How we narrowed the question
 
@@ -43,18 +55,25 @@ Autonomous **competitive research and strategy**: you provide a company name or 
 - **≥3 competitors** on the happy path, each researched with **tools + caps**.
 - **Artifacts** flow into the UI: risk dossier → landscape → deep dives → strategy.
 
+> [!NOTE]
+> **Color in the product UI** mirrors this story: **risk / gap** surfaces lean **amber & warning**, **primary actions** lean **accent / indigo**, **links & long horizon** lean **teal**—so tabs stay scannable in a live review.
+
 ## Agents, tools, memory, and failure handling
 
 Orchestration is a **LangGraph** linear workflow: each stage is a graph node with a clear contract on what it reads from state and what it writes back. That keeps “agentic” behavior where it helps—**bounded ReAct** loops with tools inside intake, competitor discovery, and peer research—while the overall run stays **easy to trace and debug**.
 
 ```mermaid
 flowchart TB
-  START([Run start]) --> intake["intake — profile"]
-  intake --> sec_risk["sec_risk — 10-K Item 1A themes"]
-  sec_risk --> competitor_discover["competitor_discover — shortlist"]
-  competitor_discover --> peer_research_parallel["peer_research_parallel — up to 3 deep dives"]
-  peer_research_parallel --> competitive_strategy["competitive_strategy — structured plan"]
-  competitive_strategy --> END([Run complete])
+  classDef bookend fill:#e0e7ff,stroke:#4f46e5,stroke-width:2px,color:#1e1b4b
+  classDef work fill:#ecfdf5,stroke:#059669,stroke-width:2px,color:#064e3b
+  classDef synth fill:#fff7ed,stroke:#ea580c,stroke-width:2px,color:#7c2d12
+
+  START([Run start]):::bookend --> intake["intake — profile"]:::work
+  intake --> sec_risk["sec_risk — 10-K Item 1A themes"]:::work
+  sec_risk --> competitor_discover["competitor_discover — shortlist"]:::work
+  competitor_discover --> peer_research_parallel["peer_research_parallel — up to 3 deep dives"]:::work
+  peer_research_parallel --> competitive_strategy["competitive_strategy — structured plan"]:::synth
+  competitive_strategy --> END([Run complete]):::bookend
 ```
 
 *Intake, competitor discovery, and peer research each run a **bounded ReAct** loop (tool calls + LLM) instead of a single monolithic prompt.*
@@ -81,6 +100,9 @@ ReAct agents do not call the network by magic—they go through small **typed cl
 | **NewsAPI** | Optional **headlines** for competitor and peer research agents. | `NEWSAPI_API_KEY` (several alias env names supported) |
 
 **In-process plumbing:** filing HTML and generic HTTP use a shared **`ToolClient`** with **retries** and size limits before any LLM sees the text—so “tools” includes both third-party APIs and **first-party fetch + clip** logic.
+
+> [!IMPORTANT]
+> **Keys = capability.** With only **`OPENAI_API_KEY`** you still get a coherent **skipped / degraded** path; adding **Tavily + Firecrawl + FMP** is what makes **discovery + filings + crawl** feel “alive” in a demo.
 
 Optional **LangSmith / LangChain** tracing env vars are documented at the bottom of this README for local debugging.
 

@@ -4,7 +4,7 @@
 [![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=next.js&logoColor=white)](https://nextjs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-orchestration-1C3C3C?logo=langchain&logoColor=white)](https://langchain-ai.github.io/langgraph/)
-[![SSE](https://img.shields.io/badge/Runs-SSE%20stream-7C3AED)](#api-fastapi--langgraph-scaffold)
+[![SSE](https://img.shields.io/badge/Runs-SSE%20stream-7C3AED)](#run-locally)
 
 Autonomous **competitive research and strategy**: you provide a company name or URL, and the system discovers rivals, gathers evidence on the open web, and returns a **structured** teardown plus priorities—meant to be read in a dashboard, not as one long essay.
 
@@ -145,48 +145,61 @@ Optional **LangSmith / LangChain** tracing env vars are documented at the bottom
 > [!IMPORTANT]
 > **“Degrade, don’t lie”** is the product default: when upstream evidence is incomplete, the UI and payload say so—so reviewers see **judgment**, not hallucinated completeness.
 
+### Scope & limitations
+
+> [!NOTE]
+> **This build is optimized for U.S. public companies** (tickers with **10-K / Item 1A** via filing metadata and HTML). The **SEC anchor** is what makes risk themes **comparable** to peer research without hallucinating a private “weakness doc.”
+
+- **Startups, SMBs, and non-U.S. names** still get **intake + web discovery + peer ReAct**, but **Item 1A depth** depends on whether we can resolve a **10-K**—coverage is best where EDGAR-style filings exist.
+- **Why not “everything” on day one?** High-quality company intelligence APIs (**filings, transcripts, premium datasets**) add **cost and integration** surface. We chose a path that **grounds** strategy in **affordable, well-documented** tools (OpenAI + search/crawl + FMP-style filings) instead of burning budget on proprietary startup graphs for a **time-boxed** take-home.
+- **Natural extensions:** richer private-company packs, founder-market databases, or paid data vendors—when product scope and budget match.
+
 *Still to add: how we used AI coding assistants, and “another day” roadmap.*
 
-## Prerequisites
+---
 
-- Node.js 20+
-- Python 3.11+
-- Optional: [uv](https://docs.astral.sh/uv/) for faster Python env management
+## Run locally
 
-## Web app
+| Requirement | Version |
+|-------------|---------|
+| Node.js | **20+** |
+| Python | **3.11+** |
+| Env file | Copy `apps/api/.env.example` → `apps/api/.env` and set at least `OPENAI_API_KEY`; add Tavily, Firecrawl, FMP, etc. for the full demo (see [External tools & APIs](#external-tools--apis)). |
+
+Optional: [uv](https://docs.astral.sh/uv/) for faster Python installs.
+
+### Web dashboard
 
 ```bash
 npm install
 npm run dev:web
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+→ [http://localhost:3000](http://localhost:3000)
 
-## API (FastAPI + LangGraph scaffold)
+### API (FastAPI + LangGraph)
 
 ```bash
 cd apps/api
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
-# or: pip install -r requirements.txt && pip install -e .
 pytest
 uvicorn battlescope_api.main:app --reload --port 8000
 ```
 
-The LangGraph `intake` node is **async**; call it with `await graph.ainvoke({...})` (see `tests/test_graph_smoke.py`).
+| Topic | Detail |
+|--------|--------|
+| Health | [http://localhost:8000/health](http://localhost:8000/health) |
+| Graph | Async nodes — `await graph.ainvoke({...})` (see `apps/api/tests/test_graph_smoke.py`) |
+| Runs (SSE) | `POST /runs/start` → `202` + `run_id` / `events_url`; `GET /runs/{run_id}/events` → `text/event-stream` with `state` \| `complete` \| `error`. UI consumes this. **Registry is in-memory (single worker)**—fine for local demo, not horizontal scale. |
+| Config | `settings.py` loads `apps/api/.env` into the process for LangSmith and other libs. |
 
-Health check: [http://localhost:8000/health](http://localhost:8000/health).
+**LangSmith (optional):** set `LANGSMITH_TRACING=true` or `LANGCHAIN_TRACING_V2=true` plus `LANGSMITH_API_KEY` / `LANGCHAIN_API_KEY` and project vars. Spans are wired on Tavily, Firecrawl, and LLM helpers under `apps/api/src/battlescope_api/tools/`.
 
-**Streaming runs (SSE):** `POST /runs/start` returns `202` with `run_id` and `events_url`; `GET /runs/{run_id}/events` streams `text/event-stream` (`data:` JSON with `type` `state` | `complete` | `error`). The web dashboard consumes this path. The in-memory run registry is **single-process / single-worker** only (not for horizontal scale).
+### Monorepo layout
 
-Phase 0 harness: JSON line logging (`log_setup`), retrying `ToolClient`, `parse_llm_json`, and `tests/fixtures/`. **IntakeProfiler** (`graph/nodes/intake.py`) calls Tavily + Firecrawl + OpenAI when keys are set, with heuristic fallback when not.
-
-**LangSmith:** add `LANGSMITH_TRACING=true` / `LANGSMITH_TRACING_V2=true` or `LANGCHAIN_TRACING_V2=true`, plus `LANGSMITH_API_KEY` / `LANGCHAIN_API_KEY` and project vars to `apps/api/.env`. On import, `settings.py` runs `load_dotenv(apps/api/.env)` so those variables reach `os.environ` (LangSmith reads the environment directly, not only Pydantic fields). `@traceable` spans live in `tools/tavily_client.py`, `firecrawl_client.py`, and `llm.py`.
-
-Copy `apps/api/.env.example` to `apps/api/.env` and add API keys when you wire Tavily, Firecrawl, and your LLM provider.
-
-## Layout
-
-- `apps/web` — Next.js UI
-- `apps/api` — Python package `battlescope_api` (FastAPI entry, LangGraph under `graph/`)
+| Path | Role |
+|------|------|
+| `apps/web` | Next.js dashboard |
+| `apps/api` | Package `battlescope_api` — FastAPI app, LangGraph under `graph/`, prompts under `prompts/` |

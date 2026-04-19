@@ -6,6 +6,7 @@
     "watchPatterns": ["apps/api/**", "Dockerfile.api", "railway.json"]
   },
   "deploy": {
+    "startCommand": "/docker-entrypoint.sh",
     "healthcheckPath": "/health"
   }
 }
